@@ -14,9 +14,16 @@
 
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const fs = require('fs');
 
 const ROOT = path.join(__dirname, '..');
 const W = 1440; const H = 900;
+
+/* El backgroundColor que main.cjs le pone a la ventana. El renderer se lo
+   vuelve a mandar ya resuelto desde los tokens, y los dos tienen que coincidir:
+   si no, el que se ve mientras el contenido no cubre la ventana es el otro. */
+const BG_MAIN = (fs.readFileSync(path.join(ROOT, 'main.cjs'), 'utf8')
+  .match(/const BG = '(#[0-9a-f]{6})'/i)?.[1] || '').toLowerCase();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let pass = 0; let fail = 0;
@@ -201,6 +208,50 @@ app.whenReady().then(async () => {
   await click('#knob-reset');
   await sleep(300);
   ok('el reset vuelve al original', (await js(`getComputedStyle(document.body).backgroundColor`)) === antes);
+
+  /* El color que el renderer le manda a la ventana.
+     Va acá y no en tokens.test.mjs porque ese test compara ARCHIVOS: verifica
+     que el hex de main.cjs derive del token. Este mide lo que pasa en tiempo
+     de ejecución, que es otra cosa y es donde estuvo el bug — el renderer
+     pisaba el backgroundColor correcto con uno mal traducido. */
+  console.log('\n8-bis. El color que va a la ventana');
+  const colorVentana = await js(`(async () => {
+    const { colorToken, aHex } = await import('./js/ui.js');
+    const computado = (() => {
+      const p = document.createElement('span');
+      p.style.cssText = 'position:fixed;left:-9999px;color:var(--ox-bg)';
+      document.body.appendChild(p);
+      const c = getComputedStyle(p).color;
+      p.remove();
+      return c;
+    })();
+    return {
+      computado,
+      hex: colorToken('--ox-bg'),
+      // El regex viejo, para dejar constancia de qué habría devuelto.
+      conRegexViejo: (() => {
+        const n = computado.match(/[0-9]+/g);
+        return n ? '#' + n.slice(0, 3).map((x) => Number(x).toString(16).padStart(2, '0')).join('') : null;
+      })(),
+      // aHex tiene que dar lo mismo pase lo que pase por la notación.
+      desdeRgb: aHex('rgb(10, 11, 13)'),
+      desdeHex: aHex('#0a0b0d'),
+    };
+  })()`);
+  ok('el token resuelve a un hex de 6 dígitos',
+    /^#[0-9a-f]{6}$/i.test(colorVentana.hex || ''), JSON.stringify(colorVentana));
+  ok('coincide con el backgroundColor de main.cjs',
+    colorVentana.hex.toLowerCase() === BG_MAIN, `${colorVentana.hex} vs ${BG_MAIN}`);
+  /* La red de seguridad de verdad: que el fondo NO sea un color saturado. El
+     bug daba #009500 —un hex perfectamente válido— así que validar la FORMA no
+     alcanza; hay que mirar el color. */
+  ok('y no es un verde/magenta salido de parsear mal el oklch', (() => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(colorVentana.hex.slice(i, i + 2), 16));
+    return Math.max(r, g, b) - Math.min(r, g, b) < 40;
+  })(), `${colorVentana.hex} (el regex viejo daba ${colorVentana.conRegexViejo})`);
+  ok('aHex normaliza cualquier notación',
+    colorVentana.desdeRgb === '#0a0b0d' && colorVentana.desdeHex === '#0a0b0d',
+    JSON.stringify(colorVentana));
 
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {

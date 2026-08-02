@@ -358,7 +358,20 @@ esc(str)                           // TODO dato de afuera pasa por acá
 mark(state, shape) / status(state, opts)
 await attempt(fn, { errorTitle })  // el error se ve, no se traga
 await copy(texto)
+
+colorToken('--ox-bg')              // un token de color, resuelto a #rrggbb
+aHex('oklch(.149 .0046 258)')      // cualquier color CSS, a #rrggbb
 ```
+
+**Para pasarle un color a Electron, usá `colorToken()` y nunca un regex.** Desde
+Chromium 144 el valor computado de una var en oklch se devuelve tal cual
+(`"oklch(0.149 0.0046 258)"`), y sacarle los números con `.match(/\d+/g)` toma
+el `0.149` del lightness como si fuera el canal verde: arma `#009500` y la app
+arranca con medio segundo de pantalla **verde**. Es un hex válido, así que
+ninguna validación de forma lo agarra. `colorToken()` pinta el color en un
+canvas de 1×1 y lee el píxel, que funciona con cualquier notación presente y
+futura. El caso completo está en
+`C:\tools\electron-dev-docs\METODO-Flash-Verde-Arranque-Electron-Win11.md`.
 
 Y de `format.js`: `fmtDur` · `fmtNum` · `fmtBytes` · `fmtMoney` · `fmtClock` ·
 `fmtDate` · `relTime` · `monogram` · `plural` · `ellipsize`.

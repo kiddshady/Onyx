@@ -114,12 +114,20 @@ test/
   tokens.test.mjs     Que el color de la ventana no se desincronice.
   store.test.mjs      Escritura atómica bajo concurrencia.
   renderer.test.cjs   Monta la app de verdad y la recorre (npm run smoke).
+  cazar-flash.ps1     Fotografía la PANTALLA mientras la app arranca.
 ```
 
 ```
 npm test        # tokens + almacenamiento. Node pelado, instantáneo.
 npm run smoke   # monta el renderer con Electron y lo recorre entero.
 ```
+
+Y para cazar un destello, `powershell test/cazar-flash.ps1`: lanza la app y
+saca fotos del escritorio contando píxeles de un color. Existe porque
+`capturePage()` **no sirve** para esto — lee el swap chain de Chromium antes de
+la composición final, así que todo lo que pinte un compositor le es invisible.
+Con él se cazó el flash verde de arranque que tenía esta misma plantilla
+(`C:\tools\electron-dev-docs\METODO-Flash-Verde-Arranque-Electron-Win11.md`).
 
 El de humo mide **dónde cae** cada overlay, no solo si existe. El bug más caro
 de este sistema fue un modal que renderizaba en `top:-281px`: presente en el

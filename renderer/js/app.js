@@ -13,7 +13,7 @@ import { Tooltip, Toast, Menu, Modal } from './overlays.js';
 import Palette from './palette.js';
 import Router from './router.js';
 import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher } from './motion.js';
-import { viewEl, esc, paint, head, empty, mark, status, attempt, copy } from './ui.js';
+import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken } from './ui.js';
 import { fmtBytes, relTime, fmtDate, plural, monogram } from './format.js';
 import { designHTML, wireDesign } from './design-view.js';
 
@@ -521,15 +521,14 @@ function registerCommands() {
    --ox-bg está en oklch y Electron solo entiende hex. En vez de mantener el
    valor duplicado a mano, se resuelve acá y se lo mandamos al proceso
    principal: así el frame fantasma que pinta el compositor de Windows al
-   restaurar sigue camuflado aunque cambies el matiz en tokens.css. */
+   restaurar sigue camuflado aunque cambies el matiz en tokens.css.
+
+   La traducción a hex la hace colorToken() con un canvas, no un regex. El
+   porqué está en ui.js y no es opcional: parseando el texto, la app le mandaba
+   VERDE a su propia ventana. */
 function syncWindowColor() {
-  const probe = document.createElement('span');
-  probe.style.cssText = 'position:fixed;left:-9999px;color:var(--ox-bg)';
-  document.body.appendChild(probe);
-  const rgb = getComputedStyle(probe).color.match(/\d+/g);
-  probe.remove();
-  if (!rgb) return;
-  api?.win?.setBackground(`#${rgb.slice(0, 3).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}`);
+  const hex = colorToken('--ox-bg');
+  if (hex) api?.win?.setBackground(hex);
 }
 
 /* ══ Arranque ════════════════════════════════════════════════════════════════ */
