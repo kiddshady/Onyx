@@ -11,7 +11,7 @@
 import { Icons } from './icons.js';
 import { Toast, Menu, Modal } from './overlays.js';
 import Palette from './palette.js';
-import { bindSwitcher } from './motion.js';
+import { bindSwitcher, bindStepper } from './motion.js';
 import { mark, status, copy, colorToken } from './ui.js';
 
 /* ── Las tres perillas ───────────────────────────────────────────────────────
@@ -152,6 +152,17 @@ export function designHTML() {
           <div class="ox-field">
             <label class="ox-field__label">Deslizador</label>
             <input type="range" class="ox-slider" id="demo-slider" min="0" max="100" value="30">
+          </div>
+          <div class="ox-field">
+            <label class="ox-field__label">Copias</label>
+            <div class="ox-stepper" id="demo-stepper">
+              <input class="ox-input ox-num" type="number" min="1" max="12" step="1" value="1">
+              <div class="ox-stepper__btns">
+                <button class="ox-stepper__btn" data-step="up" tabindex="-1"><i data-icon="chevronUp"></i></button>
+                <button class="ox-stepper__btn" data-step="down" tabindex="-1"><i data-icon="chevronDown"></i></button>
+              </div>
+            </div>
+            <span class="ox-field__hint">Mantené apretada una flecha: repite, y acelera. El tope apaga el botón.</span>
           </div>
           <div class="ox-field" style="grid-column:1/-1">
             <label class="ox-field__label">Texto largo</label>
@@ -409,6 +420,9 @@ export function wireDesign(rootEl) {
     sync();
     slider.addEventListener('input', sync);
   }
+
+  const stepper = rootEl.querySelector('#demo-stepper');
+  if (stepper) bindStepper(stepper);
 
   rootEl.querySelector('#demo-select')?.addEventListener('click', (e) => {
     const btn = e.currentTarget;

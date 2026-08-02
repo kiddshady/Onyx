@@ -215,6 +215,7 @@ Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 | Clase | Notas |
 |---|---|
 | `.ox-select` | Es un `<button>`. Abre un `Menu` propio, no un `<select>` |
+| `.ox-stepper` | Envuelve un `<input type=number>` y le pone flechas propias. Cablealo con `bindStepper()` |
 | `.ox-switch` | `.is-on` lo prende |
 | `.ox-check` | `.is-on`; el tilde se dibuja con `stroke-dashoffset` |
 | `.ox-slider` | `<input type=range>` estilado; seteale `--ox-pct` |
@@ -310,6 +311,7 @@ initClickFlash(root)
 initScrollFades(root)          // cablea todo .ox-scroll
 scrollFade(el)                 // uno solo
 bindSwitcher(el, onChange)
+bindStepper(el, onChange)      // las flechas de un .ox-stepper; repiten al aguantar
 toggleReveal(el, open)         // alto con grid 0fr → 1fr, sin animar height
 countTo(el, n, { format })     // un número que corre en vez de saltar
 tick(el)                       // destella un valor que acaba de cambiar

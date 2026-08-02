@@ -164,6 +164,58 @@ app.whenReady().then(async () => {
   })()`);
   ok('siempre hay barra sobre la pista', Array.isArray(fuera) && fuera.length === 0, JSON.stringify(fuera));
 
+  console.log('\n6-bis. El campo numérico y sus flechas');
+  /* Lo que se mide no es que el botón exista: es que el VALOR cambie, que el
+     evento salga (los listeners de las apps escuchan al input, no al botón), y
+     que el spinner de Chromium no esté asomando por debajo. */
+  const paso = await js(`(async () => {
+    const root = document.getElementById('demo-stepper');
+    if (!root) return { error: 'no existe el stepper' };
+    const input = root.querySelector('input[type="number"]');
+    const arriba = root.querySelector('[data-step="up"]');
+    const abajo = root.querySelector('[data-step="down"]');
+
+    let cambios = 0;
+    input.addEventListener('change', () => cambios++);
+
+    const tocar = (b) => {
+      const o = { bubbles: true, pointerId: 1, pointerType: 'mouse' };
+      b.dispatchEvent(new PointerEvent('pointerdown', o));
+      b.dispatchEvent(new PointerEvent('pointerup', o));
+    };
+
+    input.value = '1';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    tocar(arriba);
+    const trasSubir = input.value;
+    tocar(abajo); tocar(abajo);
+    const trasBajar = input.value;
+
+    // Al mínimo (1) la flecha de abajo tiene que quedar apagada.
+    const abajoApagado = abajo.disabled;
+
+    // Y al máximo (12), la de arriba.
+    for (let i = 0; i < 20; i++) tocar(arriba);
+    const tope = input.value;
+    const arribaApagado = arriba.disabled;
+
+    const spinner = getComputedStyle(input, '::-webkit-inner-spin-button');
+    return {
+      trasSubir, trasBajar, tope, cambios, abajoApagado, arribaApagado,
+      spinnerOculto: spinner.appearance === 'none' || spinner.display === 'none',
+      apariencia: getComputedStyle(input).appearance,
+    };
+  })()`);
+  ok('subir suma uno', paso.trasSubir === '2', JSON.stringify(paso));
+  ok('bajar no pasa del mínimo', paso.trasBajar === '1', paso.trasBajar);
+  ok('y ahí la flecha de abajo se apaga', paso.abajoApagado === true);
+  ok('no pasa del máximo', paso.tope === '12', paso.tope);
+  ok('y ahí se apaga la de arriba', paso.arribaApagado === true);
+  /* 1→2, 2→1 (el segundo click no mueve nada), y 11 subidas hasta 12. */
+  ok('cada paso real despacha change', paso.cambios === 13, `${paso.cambios}`);
+  ok('el input no muestra el control nativo', paso.apariencia === 'textfield', paso.apariencia);
+
   console.log('\n7. La fuente empaquetada carga de verdad');
   /* Éste es el chequeo que evita el fracaso silencioso: con CSP estricta y
      protocolo file://, un @font-face con la ruta mal puesta no tira error —
