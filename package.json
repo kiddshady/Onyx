@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "test": "node test/tokens.test.mjs && node test/store.test.mjs",
+    "test": "node test/tokens.test.mjs && node test/store.test.mjs && node test/format.test.mjs",
     "smoke": "electron test/renderer.test.cjs"
   },
   "devDependencies": {

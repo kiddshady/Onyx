@@ -376,6 +376,12 @@ futura. El caso completo está en
 Y de `format.js`: `fmtDur` · `fmtNum` · `fmtBytes` · `fmtMoney` · `fmtClock` ·
 `fmtDate` · `relTime` · `monogram` · `plural` · `ellipsize`.
 
+Todos escriben el decimal según `locale.tag` (por defecto `es-AR`, o sea coma).
+**No uses `toFixed()` para nada que vaya a pantalla**: escribe siempre con punto
+y deja la app diciendo "2.1 MB" al lado de "209,9 mm". Si necesitás un número
+con decimales que no encaja en ninguna de estas funciones, sumale una a
+`format.js` en vez de formatearlo a mano en la vista.
+
 ---
 
 ## Íconos
