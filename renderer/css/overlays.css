@@ -35,13 +35,33 @@
 /* ── Menú contextual / dropdown ──────────────────────────────────────────── */
 /* Los overlays que scrollean también se esfuman: la regla del corte-nunca no
    se suspende porque la superficie sea chica. Cada uno lleva un fade a su
-   escala, y su padding vertical lo iguala para que en reposo no coma ítems. */
+   escala, y su padding vertical lo iguala para que en reposo no coma ítems.
+
+   Pero estos tres están casi todos cerrados por una línea, y el fade solo va
+   donde el corte es al aire. El único lado al aire acá es el de arriba del
+   modal, contra su cabecera. Cada --ox-fade se queda igual aunque el lado esté
+   apagado: es la escala del esfumado de esa superficie, y si mañana desaparece
+   la pieza que la cierra, el fade tiene que volver con el tamaño correcto. */
 .ox-menu.ox-scroll,
 .ox-palette__list,
 .ox-modal__body.ox-scroll { overflow-x: hidden; }
 .ox-menu.ox-scroll        { --ox-fade: 10px; padding-top: 10px; padding-bottom: 10px; }
 .ox-palette__list         { --ox-fade: 18px; padding-top: 18px; padding-bottom: 18px; }
 .ox-modal__body.ox-scroll { --ox-fade: 20px; padding-top: 20px; padding-bottom: 20px; }
+
+/* El menú es su propio marco: el hairline lo cierra por los cuatro lados. Acá
+   el fade no solo sobraba — como la máscara y el borde viven en el MISMO
+   elemento, se comía el hairline justo arriba y abajo y dejaba el marco abierto. */
+.ox-menu.ox-scroll {
+  --ox-fade-top: 0px;
+  --ox-fade-bottom: 0px;
+  mask-image: none;
+}
+/* La paleta va encajada entre dos líneas: el buscador arriba, el pie abajo. */
+.ox-palette__search ~ .ox-palette__list    { --ox-fade-top: 0px; }
+.ox-palette__list:has(~ .ox-palette__foot) { --ox-fade-bottom: 0px; }
+/* El modal corta al aire arriba (la cabecera no lleva línea) y contra el pie abajo. */
+.ox-modal__body:has(~ .ox-modal__foot)     { --ox-fade-bottom: 0px; }
 
 .ox-menu {
   position: absolute;

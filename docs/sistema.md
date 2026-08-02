@@ -100,6 +100,25 @@ y cuesta caro en repaints.
 `.ox-row` · `.ox-col` · `.ox-grow` · `.ox-spacer` · `.ox-truncate` ·
 `.ox-scroll` (con esfumado) · `.ox-scroll-x` · `.ox-hr` · `.ox-vr`
 
+El esfumado de `.ox-scroll` va **solo donde el corte es al aire**. Si de ese lado
+hay una línea — la statusbar, el pie de un panel, el hairline del propio bloque —
+esa línea ya es el límite: el fade encima la ensucia, y además miente, porque el
+contenido no se pierde en la nada sino que muere contra un borde.
+
+```html
+<div class="ox-scroll ox-scroll--line-bottom">…</div>
+```
+
+Modificadores: `--line-top` · `--line-bottom` (y `--line-left` · `--line-right`
+en `.ox-scroll-x`). El shell ya los aplica donde corresponde, y con `:has()`, así
+que si sacás la pieza que cerraba ese lado el fade vuelve solo: rail contra su
+pie, inspector contra el suyo, vista contra la statusbar, paleta entre buscador y
+pie, modal contra su pie. **El menú no esfuma nunca** — su hairline lo cierra por
+los cuatro lados, y como máscara y borde viven en el mismo elemento, el fade le
+comía el propio hairline. El tamaño lo da `--ox-fade`, y el contenedor lleva
+padding ≥ ese valor para que en reposo la banda no coma el primer ni el último
+ítem.
+
 `.ox-title` · `.ox-subtitle` · `.ox-display` · `.ox-label` · `.ox-meta` ·
 `.ox-eyebrow` (versalita espaciada) · `.ox-mono` · `.ox-num` (tabular) ·
 `.ox-dim` · `.ox-dim2` · `.ox-danger`

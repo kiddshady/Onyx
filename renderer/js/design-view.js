@@ -33,6 +33,9 @@ const swatch = (name, varName) => `
     <span class="ox-mono ox-dim2" style="font-size:10px">${varName}</span>
   </div>`;
 
+const fadeDemoRows = Array.from({ length: 14 }, (_, i) =>
+  `<div style="padding:7px 0;font-size:12px;color:var(--ox-text-2);box-shadow:inset 0 -1px 0 var(--ox-line)">Elemento de lista ${i + 1}</div>`).join('');
+
 const section = (title, note, body) => `
   <section style="margin-bottom:40px">
     <div class="ox-row" style="margin-bottom:4px"><span class="ox-eyebrow">${title}</span></div>
@@ -243,10 +246,24 @@ export function designHTML() {
           </table>
         </div>`)}
 
-      ${section('Esfumado del scroll', 'Donde el scroll recorta, el contenido se desvanece. Un corte duro se lee como un bug; el fade dice «hay más, seguí». El contenedor lleva padding ≥ el tamaño del fade, para que en reposo la banda esfumada no coma el primer ni el último ítem.', `
-        <div class="ox-sunken" style="max-width:420px;height:180px;overflow:hidden">
-          <div class="ox-scroll" style="height:100%;padding-left:14px;padding-right:14px">
-            ${Array.from({ length: 14 }, (_, i) => `<div style="padding:7px 0;font-size:12px;color:var(--ox-text-2);box-shadow:inset 0 -1px 0 var(--ox-line)">Elemento de lista ${i + 1}</div>`).join('')}
+      ${section('Esfumado del scroll', 'Donde el scroll recorta <b>al aire</b>, el contenido se desvanece: un corte al aire se lee como un bug, y el fade dice «hay más, seguí». Pero el fade no va en todo corte — va donde nada más explica el límite. Si de ese lado hay una línea, la línea YA es el límite: el esfumado encima la ensucia y además miente, porque el contenido no se pierde en la nada sino que muere contra un borde. Ese lado se apaga con <span class="ox-mono">.ox-scroll--line-top</span> / <span class="ox-mono">--line-bottom</span>. Los dos casos, con la misma lista:', `
+        <div class="ox-row" style="gap:20px;align-items:flex-start;flex-wrap:wrap">
+          <div class="ox-col" style="gap:8px">
+            <span class="ox-meta">Sin borde — se esfuma de los dos lados</span>
+            <div style="width:296px;height:180px">
+              <div class="ox-scroll" style="height:100%;--ox-fade:20px">
+                ${fadeDemoRows}
+              </div>
+            </div>
+          </div>
+          <div class="ox-col" style="gap:8px">
+            <span class="ox-meta">Con borde — corta limpio contra él</span>
+            <div class="ox-sunken" style="width:296px;height:180px;overflow:hidden">
+              <div class="ox-scroll ox-scroll--line-top ox-scroll--line-bottom"
+                   style="height:100%;padding-left:14px;padding-right:14px;--ox-fade:20px">
+                ${fadeDemoRows}
+              </div>
+            </div>
           </div>
         </div>`)}
 

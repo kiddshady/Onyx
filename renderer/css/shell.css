@@ -92,6 +92,9 @@
 }
 .ox-rail__top { padding: var(--ox-3) var(--ox-3) var(--ox-2); }
 .ox-rail__nav { flex: 1 1 auto; min-height: 0; padding: 0 var(--ox-3); }
+/* Abajo el nav muere contra la línea del pie, no al aire: ahí no va esfumado.
+   Con :has(), si una app se queda sin pie el fade vuelve solo. */
+.ox-rail__nav:has(~ .ox-rail__foot) { --ox-fade-bottom: 0px; }
 .ox-rail__group { margin-bottom: var(--ox-1); }
 .ox-rail__group-label {
   padding: var(--ox-3) var(--ox-2) var(--ox-1);
@@ -216,6 +219,13 @@
   position: relative;
 }
 
+/* Arriba la vista corta al aire — el viewhead no lleva línea — y ahí el fade es
+   lo único que avisa que hay más. Abajo cierra la statusbar con la suya, así que
+   el corte ya está explicado y el esfumado solo taparía la línea. */
+.ox-app:has(> .ox-statusbar) :is(.ox-main, .ox-viewbody__main) > .ox-scroll {
+  --ox-fade-bottom: 0px;
+}
+
 /* ── Inspector (panel derecho) ────────────────────────────────────────────── */
 .ox-inspector {
   width: var(--ox-inspector);
@@ -240,6 +250,8 @@
   flex: 0 0 auto;
 }
 .ox-inspector__body { flex: 1 1 auto; min-height: 0; padding-left: var(--ox-4); padding-right: var(--ox-4); }
+/* Arriba corta al aire (el head no lleva línea) y abajo contra el pie, que sí. */
+.ox-inspector__body:has(~ .ox-inspector__foot) { --ox-fade-bottom: 0px; }
 .ox-inspector__foot {
   padding: var(--ox-3) var(--ox-4);
   box-shadow: inset 0 1px 0 var(--ox-line);

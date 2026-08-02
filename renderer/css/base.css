@@ -169,43 +169,69 @@ p, code, pre,
 .ox-icon--fill { fill: currentColor; stroke: none; }
 
 /* ── Esfumado del scroll ─────────────────────────────────────────────────────
-   Donde el scroll recorta, el contenido se DESVANECE. Nunca un corte duro:
-   un corte se lee como un bug, el fade dice "hay más, seguí".
+   Donde el scroll recorta AL AIRE, el contenido se DESVANECE: un corte al aire
+   se lee como un bug, el fade dice "hay más, seguí".
+
+   Pero el fade no va en todo corte. Va donde nada más explica el límite. Si de
+   ese lado hay una línea — la statusbar, el pie de un panel, el hairline del
+   propio bloque — el límite YA está dicho: el esfumado encima la ensucia, y
+   además miente, porque el contenido no se pierde en la nada sino que muere
+   contra un borde. Ese lado lleva --line-top / --line-bottom y corta limpio.
+
    El padding ≥ --ox-fade evita que en reposo la banda coma el primer/último item.
    Las clases .is-top / .is-bottom las maneja scrollFade() en motion.js. */
+
+/* Registradas para que el fade ANIME por lado: una custom property sin @property
+   no interpola, y el esfumado entraría de golpe al empezar a scrollear. */
+@property --ox-fade-top    { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --ox-fade-bottom { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
 .ox-scroll {
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: var(--ox-fade);
   padding-bottom: var(--ox-fade);
-  transition: mask-image var(--ox-t-3) var(--ox-ease-soft);
+  --ox-fade-top: var(--ox-fade);
+  --ox-fade-bottom: var(--ox-fade);
+  transition: --ox-fade-top var(--ox-t-3) var(--ox-ease-soft),
+              --ox-fade-bottom var(--ox-t-3) var(--ox-ease-soft);
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 var(--ox-fade),
-    #000 calc(100% - var(--ox-fade)),
+    #000 var(--ox-fade-top),
+    #000 calc(100% - var(--ox-fade-bottom)),
     transparent 100%
   );
 }
 /* Pegado arriba: no esfumamos arriba. Pegado abajo: no esfumamos abajo. */
-.ox-scroll.is-top {
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--ox-fade)), transparent 100%);
-}
-.ox-scroll.is-bottom {
-  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--ox-fade));
-}
-.ox-scroll.is-top.is-bottom { mask-image: none; }
+.ox-scroll.is-top    { --ox-fade-top: 0px; }
+.ox-scroll.is-bottom { --ox-fade-bottom: 0px; }
+
+/* De ese lado hay una línea, y la línea es el límite: el fade sobra. */
+.ox-scroll.ox-scroll--line-top    { --ox-fade-top: 0px; }
+.ox-scroll.ox-scroll--line-bottom { --ox-fade-bottom: 0px; }
+
+/* Sin nada que esfumar de ningún lado, la máscara solo cuesta una capa de más. */
+.ox-scroll.is-top.is-bottom,
+.ox-scroll.ox-scroll--line-top.ox-scroll--line-bottom { mask-image: none; }
+
+@property --ox-fade-left  { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --ox-fade-right { syntax: '<length>'; inherits: false; initial-value: 0px; }
 
 .ox-scroll-x {
   overflow-x: auto;
   overflow-y: hidden;
   padding-left: var(--ox-fade);
   padding-right: var(--ox-fade);
+  --ox-fade-left: var(--ox-fade);
+  --ox-fade-right: var(--ox-fade);
   mask-image: linear-gradient(
     to right,
     transparent 0,
-    #000 var(--ox-fade),
-    #000 calc(100% - var(--ox-fade)),
+    #000 var(--ox-fade-left),
+    #000 calc(100% - var(--ox-fade-right)),
     transparent 100%
   );
 }
+.ox-scroll-x.ox-scroll-x--line-left  { --ox-fade-left: 0px; }
+.ox-scroll-x.ox-scroll-x--line-right { --ox-fade-right: 0px; }

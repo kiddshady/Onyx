@@ -162,10 +162,14 @@ adentro de una ventana".
 `user-select: none` para el feel nativo, pero todo lo que alguien querría
 llevarse lleva `.ox-copyable`. Bloquear la selección es hostil.
 
-**Donde el scroll recorta, va un fade.** Nunca un corte duro — se lee como un
+**Donde el scroll recorta al aire, va un fade.** Un corte al aire se lee como un
 bug. `.ox-scroll` lo hace solo, y apaga el fade del lado donde no hay nada
-recortado. El contenedor lleva padding ≥ `--ox-fade` para que en reposo la banda
-no coma el primer ni el último ítem.
+recortado. Pero **el fade va solo donde el corte es al aire**: si de ese lado hay
+una línea — la statusbar, el pie de un panel, el hairline del propio bloque — la
+línea ya es el límite, y el esfumado encima la ensucia y además miente. Un bloque
+con borde corta limpio contra su borde: ese lado se apaga con
+`.ox-scroll--line-top` / `--line-bottom`. El contenedor lleva padding ≥
+`--ox-fade` para que en reposo la banda no coma el primer ni el último ítem.
 
 **La jerarquía es por elevación, no por bordes.** Lo que flota sube de
 superficie y proyecta sombra. Los hairlines existen para divisores finos, y
