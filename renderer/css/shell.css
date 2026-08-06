@@ -207,6 +207,36 @@
 .ox-crumbs__item:last-child { color: var(--ox-text-2); }
 .ox-crumbs .ox-icon { width: 12px; height: 12px; color: var(--ox-text-4); }
 
+/* ── La sangría lateral del contenido ────────────────────────────────────────
+   El contenido de una vista tiene que arrancar EN LA MISMA columna que su
+   propio título. El `viewhead` ya trae su `--ox-6`; esta regla se lo da a todo
+   lo demás, en los dos layouts de vista que existen:
+
+     .ox-main > .ox-scroll                    (vista simple)
+     .ox-main > .ox-viewbody > __main         (vista con inspector)
+
+   Antes no estaba en ningún lado y cada vista lo compensaba con un
+   `style="padding-left:24px;padding-right:24px"` inline — el mismo número
+   mágico repetido cinco veces en la plantilla. Lo que hacía era peor que feo:
+   una vista nueva, escrita sin copiar una vieja, nacía con todo pegado al riel
+   y corrido respecto de su encabezado, y el síntoma no señalaba la causa.
+
+   `.ox-viewbody` queda AFUERA a propósito: el inspector tiene fondo y hairline
+   propios y tiene que llegar al borde de la ventana. La sangría se la pone su
+   `__main`, que es el que lleva contenido.
+
+   Es `padding-inline` y no el atajo `padding`: `.ox-scroll` usa el
+   `padding-top`/`bottom` para su esfumado y pisárselos le rompe la máscara.
+
+   Para lo que va de borde a borde —un lienzo, un mapa, una tabla ancha— está
+   `.ox-bleed`. */
+.ox-main > :not(.ox-viewhead):not(.ox-viewbody),
+.ox-viewbody__main {
+  padding-inline: var(--ox-6);
+}
+
+.ox-bleed, .ox-viewbody__main--bleed { padding-inline: 0; }
+
 .ox-viewbody { flex: 1 1 auto; min-height: 0; display: flex; }
 /* position:relative para anclar los controles flotantes del lienzo: si viven
    DENTRO del contenedor que scrollea, se van de pantalla con el contenido. */

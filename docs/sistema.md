@@ -167,7 +167,14 @@ La titlebar entera es zona de arrastre; lo que sea clickeable lleva
 ### Dentro de la vista
 
 `head({ title, sub, crumbs, actions })` de `ui.js` arma el `.ox-viewhead`.
-Para dos paneles:
+
+Hay dos layouts. El simple, que es el 90% de las vistas:
+
+```html
+<div class="ox-scroll ox-grow">…</div>
+```
+
+Y el de dos paneles:
 
 ```html
 <div class="ox-viewbody">
@@ -179,6 +186,11 @@ Para dos paneles:
   </aside>
 </div>
 ```
+
+**La sangría lateral la pone el shell, en los dos.** No le agregues padding
+horizontal a tu contenedor: el contenido arranca en la misma columna que el
+título de la vista, y el número sale de un solo lugar. Lo que va de borde a
+borde —un lienzo, un mapa— lleva `.ox-bleed`.
 
 `.ox-inspector.is-collapsed` lo cierra con transición. `.ox-viewbody__main` es
 `position:relative` para anclar controles flotantes: si viven dentro del

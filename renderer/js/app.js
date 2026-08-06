@@ -110,7 +110,7 @@ function viewInicio() {
     sub: 'Plantilla Onyx corriendo sobre datos reales en disco',
     actions: '<button class="ox-btn ox-btn--primary ox-flashable" data-action="new"><i data-icon="plus"></i> Nuevo ítem</button>',
   }) + `
-    <div class="ox-scroll ox-grow" style="padding-left:24px;padding-right:24px">
+    <div class="ox-scroll ox-grow">
       <div class="ox-row" style="gap:40px;margin-bottom:28px;flex-wrap:wrap">
         <div class="ox-stat"><span class="ox-stat__value" id="k-items">0</span><span class="ox-stat__label">Ítems</span></div>
         <div class="ox-stat"><span class="ox-stat__value" id="k-bytes">0</span><span class="ox-stat__label">En disco</span></div>
@@ -161,7 +161,7 @@ function viewItems() {
     sub: plural(S.items.length, 'ítem', 'ítems') + ' en ' + esc(S.info?.dataDir || 'disco'),
     actions: '<button class="ox-btn ox-btn--primary ox-flashable" data-action="new"><i data-icon="plus"></i> Nuevo ítem</button>',
   }) + (S.items.length
-    ? `<div class="ox-scroll ox-grow" style="padding-left:24px;padding-right:24px">
+    ? `<div class="ox-scroll ox-grow">
          <div class="ox-list">${S.items.map(rowHTML).join('')}</div>
          <div style="height:32px"></div>
        </div>`
@@ -192,7 +192,7 @@ function viewItem(id) {
   }) + `
     <div class="ox-viewbody">
       <div class="ox-viewbody__main">
-        <div class="ox-scroll ox-grow" style="padding-left:24px;padding-right:24px">
+        <div class="ox-scroll ox-grow">
           <div class="ox-card" style="max-width:640px">
             <div class="ox-card__head"><span class="ox-subtitle">Nota</span></div>
             <div class="ox-card__body">
@@ -281,7 +281,7 @@ const DENSIDADES = [
 function viewAjustes() {
   const st = S.settings;
   paint(head({ title: 'Ajustes', sub: 'Se guardan en settings.json, con escritura atómica' }) + `
-    <div class="ox-scroll ox-grow" style="padding-left:24px;padding-right:24px">
+    <div class="ox-scroll ox-grow">
       <div style="max-width:620px">
 
         <div class="ox-section">

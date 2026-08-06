@@ -45,7 +45,7 @@ const section = (title, note, body) => `
 
 export function designHTML() {
   return `
-    <div class="ox-scroll ox-grow" id="design-scroll" style="padding-left:24px;padding-right:24px">
+    <div class="ox-scroll ox-grow" id="design-scroll">
     <div id="design-body" style="max-width:920px">
 
       ${section('Las perillas', 'Todo el sistema deriva de estas cuatro variables. Movelas: la app entera se re-tinta en vivo, incluido el color con el que el compositor de Windows pinta el frame de restaurar. Esto es literalmente lo que hacés al empezar una app nueva — salvo que ahí lo hacés con <span class="ox-mono">node tools/retint.mjs</span>, que además mantiene en sincronía las dos copias en hex del color base.', `
