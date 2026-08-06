@@ -131,7 +131,22 @@
   gap: var(--ox-3);
   padding: var(--ox-4) var(--ox-4) var(--ox-3);
 }
-.ox-card__body { padding: 0 var(--ox-4) var(--ox-4); }
+/* EL CUERPO PONE SU PROPIO AIRE DE ARRIBA.
+
+   Antes era `padding: 0 var(--ox-4) var(--ox-4)`, y ese cero de arriba estaba
+   pensado para el caso de abajo: con un `__head` encima, el aire ya lo puso él
+   y repetirlo separaría el cuerpo de su propio título.
+
+   Pero una tarjeta SIN head —`<div class="ox-card"><div class="ox-card__body">`,
+   que es la forma más común— se quedaba sin nada arriba: 0 px contra 16 abajo,
+   con el contenido pegado al borde superior.
+
+   Lo que lo dejó pasar tanto tiempo: la vitrina mostraba `ox-card` una sola vez
+   y con un `padding` inline, saltándose el componente. El único lugar que
+   existe para ver las piezas nunca dibujaba la que estaba rota. Ahora están las
+   dos formas en «Superficies». */
+.ox-card__body { padding: var(--ox-4); }
+.ox-card__head + .ox-card__body { padding-top: 0; }
 .ox-card__foot {
   display: flex;
   align-items: center;

@@ -338,6 +338,44 @@ app.whenReady().then(async () => {
     descentrados.malos.length === 0, JSON.stringify(descentrados.malos));
   ok('y había botones que revisar', descentrados.revisados > 10, `${descentrados.revisados}`);
 
+  /* ── La tarjeta sin encabezado ──────────────────────────────────────────────
+     `.ox-card__body` llevaba `padding-top: 0` para no repetir el aire que el
+     `__head` ya pone. Con head quedaba perfecto; SIN head el contenido se
+     pegaba al borde de arriba — 0 px contra 16 abajo.
+
+     Vivió tanto porque esta misma vitrina mostraba UNA tarjeta y con `padding`
+     inline: el único lugar que existe para ver las piezas era el único donde la
+     pieza rota no se veía. */
+  console.log('\n8-quater. Las dos formas de la tarjeta');
+
+  const tarjetas = await js(`(() => [...document.querySelectorAll('.ox-card__body')].map((b) => {
+    const s = getComputedStyle(b);
+    const head = b.previousElementSibling?.classList.contains('ox-card__head');
+    const arriba = b.getBoundingClientRect().top - b.closest('.ox-card').getBoundingClientRect().top;
+    return {
+      head: !!head,
+      top: parseFloat(s.paddingTop),
+      bottom: parseFloat(s.paddingBottom),
+      // Lo que de verdad separa al contenido del filo: el padding del cuerpo
+      // MÁS lo que haya arriba de él.
+      aire: +(arriba + parseFloat(s.paddingTop)).toFixed(1),
+    };
+  }))()`);
+
+  const sinHead = tarjetas.filter((t) => !t.head);
+  const conHead = tarjetas.filter((t) => t.head);
+
+  ok('la vitrina muestra las dos formas', sinHead.length > 0 && conHead.length > 0,
+    JSON.stringify(tarjetas));
+  ok('sin encabezado, el cuerpo pone su propio aire arriba',
+    sinHead.every((t) => t.top > 0 && t.top === t.bottom), JSON.stringify(sinHead));
+  /* Y el arreglo NO puede romper el caso que ya estaba bien: con head, repetir
+     el padding separaría el cuerpo de su propio título. */
+  ok('con encabezado, el cuerpo NO lo repite', conHead.every((t) => t.top === 0),
+    JSON.stringify(conHead));
+  ok('pero el contenido igual queda separado del filo',
+    tarjetas.every((t) => t.aire >= 12), JSON.stringify(tarjetas.map((t) => t.aire)));
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;
