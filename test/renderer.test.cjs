@@ -305,6 +305,39 @@ app.whenReady().then(async () => {
     colorVentana.desdeRgb === '#0a0b0d' && colorVentana.desdeHex === '#0a0b0d',
     JSON.stringify(colorVentana));
 
+  /* ── Botones de solo ícono ─────────────────────────────────────────────────
+     Un botón que solo lleva un SVG tiene que tenerlo centrado. Suena obvio y no
+     lo era: Chromium le da `padding: 1px 6px` a todo `<button>` y este reset no
+     lo tocaba. En los controles chicos eso deja la caja de contenido más
+     angosta que el ícono; el ícono desborda, y un ítem de grid que desborda su
+     área cae de `center` a `start`. El tilde del `.ox-check` salía 4px a la
+     derecha y recortado contra el borde; el `.ox-iconbtn`, 1,5px — invisible de
+     a uno y repetido en la titlebar, el rail y cada fila.
+
+     Corre sobre Piezas, que es donde están todos los primitivos juntos. */
+  console.log('\n8-ter. Los botones de solo ícono centran su contenido');
+  const descentrados = await js(`(() => {
+    const malos = [];
+    for (const b of document.querySelectorAll('button')) {
+      // Solo ícono: un único hijo elemento, que es un svg, y sin texto.
+      if (b.children.length !== 1 || b.textContent.trim()) continue;
+      const hijo = b.firstElementChild;
+      if (hijo.tagName.toLowerCase() !== 'svg') continue;
+      const rb = b.getBoundingClientRect();
+      const rh = hijo.getBoundingClientRect();
+      if (!rb.width || !rh.width) continue;
+      const d = ((rh.left + rh.right) / 2) - ((rb.left + rb.right) / 2);
+      const desborda = rh.right > rb.right + 0.5 || rh.left < rb.left - 0.5;
+      if (Math.abs(d) > 0.51 || desborda) {
+        malos.push({ clase: b.className.slice(0, 34), corrimiento: +d.toFixed(2), desborda });
+      }
+    }
+    return { malos, revisados: [...document.querySelectorAll('button')].length };
+  })()`);
+  ok('ninguno tiene el ícono corrido ni desbordado',
+    descentrados.malos.length === 0, JSON.stringify(descentrados.malos));
+  ok('y había botones que revisar', descentrados.revisados > 10, `${descentrados.revisados}`);
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;

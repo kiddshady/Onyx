@@ -238,6 +238,20 @@ Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 `.ox-tabs`: maneja el activo, hace viajar el indicador y reajusta al
 redimensionar.
 
+### Un botón nuevo declara SU padding
+
+`base.css` pone `button { padding: 0 }`. No lo saques y no confíes en el padding
+de fábrica: Chromium le da `1px 6px` a todo `<button>`, y con `box-sizing:
+border-box` eso se come el interior de los controles chicos. En un `.ox-check`
+de 15px dejaba una caja de contenido de 3px para un ícono de 11 — el ícono
+desbordaba, y **un ítem de grid que desborda su área cae de `center` a
+`start`**, así que el tilde salía 4px a la derecha y recortado contra el borde.
+El `.ox-iconbtn` tenía lo mismo en chico (1,5px), invisible de a uno y presente
+en toda la app.
+
+El de humo lo vigila: recorre Piezas y falla si algún botón de solo ícono tiene
+el SVG corrido más de medio píxel o desbordando.
+
 ---
 
 ## Superficies
