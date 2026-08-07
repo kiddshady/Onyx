@@ -115,6 +115,16 @@ app.whenReady().then(async () => {
   const pal = await js(`(() => { const p=document.querySelector('.ox-palette'); if(!p) return null;
     const r=p.getBoundingClientRect(); return {t:Math.round(r.top),cx:Math.round(r.left+r.width/2)}; })()`);
   ok('la paleta abre centrada y visible', pal && pal.t > 0 && Math.abs(pal.cx - W / 2) < 4, JSON.stringify(pal));
+
+  /* Y el campo vacío no promete cosas de otra app. Estuvo diciendo «Buscar
+     comandos, pipelines, agentes…» —vocabulario de aquella para la que se
+     escribió esta paleta— y viajó con la plantilla hasta un editor de química,
+     donde ofrecía dos features que no existen. Un texto que solo se lee con el
+     campo en blanco es de los que nadie vuelve a mirar: que lo mire esto. */
+  const ph = await js(`document.querySelector('.ox-palette__input')?.placeholder || ''`);
+  ok('con una pista en el campo vacío', ph.length > 3, ph);
+  ok('y sin vocabulario prestado de otra app', !/pipeline|agente/i.test(ph), ph);
+
   await click('.ox-scrim'); await sleep(400);
 
   await click('[data-view="piezas"]');

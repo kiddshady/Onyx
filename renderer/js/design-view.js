@@ -233,7 +233,8 @@ export function designHTML() {
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-confirm">Confirmación destructiva</button>
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-toast">Toast</button>
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-toast-err">Toast de error</button>
-          <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-palette">Paleta de comandos</button>
+          <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-palette"
+                  data-tip="El texto del campo vacío lo pone cada app con Palette.init({ placeholder }); el default solo promete comandos">Paleta de comandos</button>
         </div>`)}
 
       ${section('Métricas y medidores', '', `
