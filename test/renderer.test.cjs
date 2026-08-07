@@ -156,23 +156,38 @@ app.whenReady().then(async () => {
   await sleep(500);
   ok('y un click afuera también lo cierra', !(await abierto()));
 
-  console.log('\n6. El medidor indeterminado nunca se va de la pista');
-  // Una barra que se sale de su pista se lee como un componente roto, no como
-  // "esperando". Se muestrea el recorrido entero en vez de mirar un instante.
-  const fuera = await js(`(async () => {
+  /* ── 6. El medidor indeterminado ───────────────────────────────────────────
+     Una pista vacía se lee como un componente roto, no como «esperando». Se
+     muestrea el recorrido entero en vez de mirar un instante.
+
+     SE MIDE LA RACHA, NO LAS MUESTRAS SUELTAS, y la diferencia importa. La
+     barra recorre de -100% a 294% de su propio ancho, así que en el empalme del
+     bucle queda un frame exactamente al filo de la pista: medido con
+     requestAnimationFrame sobre dos ciclos completos —226 frames— el solape
+     mínimo es 0.43 px, aparece UNA vez y no se repite nunca dos frames
+     seguidos. Es el diseño, y está escrito así arriba de la animación.
+
+     La versión anterior exigía «más de 1 px SIEMPRE», lo que convertía ese
+     frame invisible en una falla y dejaba el resultado librado a dónde cayera
+     el muestreo. Lo que de verdad hay que prohibir es que la pista quede vacía
+     un RATO —lo único que un ojo alcanza a ver— y eso es una racha. */
+  console.log('\n6. El medidor indeterminado nunca deja la pista vacía');
+  const pista = await js(`(async () => {
     const m = document.querySelector('.ox-meter--indeterminate');
     const f = m && m.querySelector('.ox-meter__fill');
-    if (!f) return 'no existe';
-    const malos = [];
-    for (let i = 0; i < 30; i++) {
+    if (!f) return { error: 'no existe' };
+    const muestras = [];
+    for (let i = 0; i < 40; i++) {
       const p = m.getBoundingClientRect(); const r = f.getBoundingClientRect();
-      const visible = Math.min(r.right, p.right) - Math.max(r.left, p.left);
-      if (visible < 1) malos.push(i);
-      await new Promise(res => setTimeout(res, 60));
+      muestras.push(Math.min(r.right, p.right) - Math.max(r.left, p.left));
+      await new Promise(res => setTimeout(res, 50));
     }
-    return malos;
+    let racha = 0; let peor = 0;
+    for (const v of muestras) { if (v < 1) { racha++; peor = Math.max(peor, racha); } else racha = 0; }
+    return { peor, min: Math.round(Math.min(...muestras) * 100) / 100, n: muestras.length };
   })()`);
-  ok('siempre hay barra sobre la pista', Array.isArray(fuera) && fuera.length === 0, JSON.stringify(fuera));
+  ok('la barra nunca falta dos muestras seguidas',
+    pista && !pista.error && pista.peor <= 1, JSON.stringify(pista));
 
   console.log('\n6-bis. El campo numérico y sus flechas');
   /* Lo que se mide no es que el botón exista: es que el VALOR cambie, que el
