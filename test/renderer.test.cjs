@@ -59,6 +59,10 @@ app.whenReady().then(async () => {
     el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, composed: true }));
     el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, composed: true }));
     el.click(); return true; })()`);
+  // Una tecla de verdad, por el canal de entrada de la ventana. Misma razón por
+  // la que `tap` existe al lado de `click`: un evento fabricado a mano prueba el
+  // manejador, no el camino que recorre la tecla hasta llegar a él.
+  const escape = () => win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
 
   console.log('\n1. Arranque');
   ok('el splash se fue', !(await js(`!!document.getElementById('boot-splash')`)));
@@ -155,6 +159,39 @@ app.whenReady().then(async () => {
   await js(`document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })); true`);
   await sleep(500);
   ok('y un click afuera también lo cierra', !(await abierto()));
+
+  /* ── 5-bis. Escape con un menú abierto encima de un modal ──────────────────
+     Modal y Menu escuchan los dos el keydown en `document` y en CAPTURA. Para
+     el mismo nodo y la misma fase gana el que se registró primero, y ese es
+     siempre el modal, que abrió antes. Resultado: desplegar un select adentro
+     de un diálogo y arrepentirse con Escape cerraba el DIÁLOGO ENTERO y se
+     perdía todo lo tipeado, en vez de cerrar solo el menú.
+
+     Es un bug de orden de registro: no se ve leyendo ninguno de los dos módulos
+     por separado —cada manejador, solo, es correcto— y vuelve apenas alguien
+     reordene los overlays. Por eso se prueba acá y no en unidad: hace falta que
+     los dos estén vivos al mismo tiempo.
+
+     El modal de la vitrina no trae un select adentro, así que el escenario se
+     arma: se abre el modal y se dispara el menú del select que quedó atrás. Que
+     ese botón esté tapado por el scrim da igual — lo que se prueba es el estado
+     «menú abierto encima de un modal», no dónde se puede clickear. */
+  console.log('\n5-bis. Escape se lleva el menú, no el diálogo de atrás');
+  await click('#demo-modal');
+  await sleep(600);
+  await click('#demo-select');
+  await sleep(400);
+  const hayModal = () => js(`!!document.querySelector('.ox-modal')`);
+  ok('con el diálogo abierto, el menú abre encima', (await abierto()) && (await hayModal()));
+
+  escape();
+  await sleep(600);
+  ok('el primer Escape cierra SOLO el menú', !(await abierto()));
+  ok('y el diálogo sigue en pie', await hayModal());
+
+  escape();
+  await sleep(600);
+  ok('el segundo Escape sí cierra el diálogo', !(await hayModal()));
 
   /* ── 6. El medidor indeterminado ───────────────────────────────────────────
      Una pista vacía se lee como un componente roto, no como «esperando». Se
