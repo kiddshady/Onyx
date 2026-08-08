@@ -302,7 +302,16 @@ const Modal = (() => {
 
   function onKey(e) {
     if (!open) return;
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(null); }
+    if (e.key === 'Escape') {
+      /* Si hay un menú abierto encima, el Escape es suyo. Los dos escuchan en
+         `document` y en captura, así que gana el que se registró primero — y
+         ese es el modal, que abrió antes. Sin esta guarda, desplegar un select
+         adentro del diálogo y arrepentirse cerraba el diálogo entero y se
+         llevaba todo lo tipeado. El que ya está saliendo no cuenta: sigue en
+         el DOM hasta que termine su animación. */
+      if (document.querySelector('.ox-menu:not([data-state="closing"])')) return;
+      e.preventDefault(); e.stopPropagation(); close(null);
+    }
     if (e.key !== 'Tab') return;
     // Trampa de foco: el tabulador no se escapa del modal.
     const f = [...open.anim.querySelectorAll('button,input,textarea,select,[tabindex]:not([tabindex="-1"])')]
