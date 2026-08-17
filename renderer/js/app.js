@@ -491,9 +491,6 @@ function updateChrome() {
   const saved = document.querySelector('#stat-saved .ox-statusbar__value');
   if (saved) saved.textContent = S.lastSaved ? relTime(S.lastSaved) : '—';
 
-  document.getElementById('stat-version').innerHTML =
-    `${mark('done')}<span>${esc(S.info?.name || 'Onyx')} ${esc(S.info?.version || '')}</span>`;
-
   document.getElementById('rail-foot').innerHTML =
     `<span class="ox-meta ox-truncate" data-tip="${esc(S.info?.dataDir || '')}">${esc(S.info?.dataDir || '')}</span>`;
 
