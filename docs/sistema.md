@@ -97,8 +97,26 @@ y cuesta caro en repaints.
 
 ## Utilidades
 
-`.ox-row` · `.ox-col` · `.ox-grow` · `.ox-spacer` · `.ox-truncate` ·
+`.ox-row` · `.ox-col` · `.ox-grow` · `.ox-spacer` · `.ox-truncate` · `.ox-path` ·
 `.ox-scroll` (con esfumado) · `.ox-scroll-x` · `.ox-hr` · `.ox-vr`
+
+**Recortar tiene dos formas.** `.ox-truncate` corta por la cola, que es lo que
+corresponde a un nombre: el final es lo primero que deja de importar. Una
+**ruta** es al revés — el principio lo comparten todas y el final es lo único
+que la identifica — así que va con `.ox-path`, que recorta por el MEDIO. El
+builder `path()` de `ui.js` arma el markup; el recorte lo decide el CSS, que
+sabe cuánto entra:
+
+```js
+`<div class="ox-mono" data-tip="${esc(dir)}">${path(dir)}</div>`
+// C:\Users\fulano\AppData\… → C:\Users\f…\Onyx\data
+```
+
+`.ox-truncate` lleva `display: block` a propósito: sobre un elemento **inline**
+—un `<span>` suelto dentro de un div— `overflow` y `text-overflow` no aplican, y
+sin eso la clase no hace nada y el texto se corta al aire. Donde el span ya es
+ítem de un flex (menús, paleta) funcionaba igual, y por eso el agujero pasó
+desapercibido tanto tiempo.
 
 El esfumado de `.ox-scroll` va **solo donde el corte es al aire**. Si de ese lado
 hay una línea — la statusbar, el pie de un panel, el hairline del propio bloque —
@@ -265,8 +283,10 @@ Las acciones van en `.ox-rowactions` (aparecen con el hover).
 `.ox-table` + `.ox-tr`; `.ox-td--num` alinea a la derecha con cifras tabulares,
 `.ox-td--tight` achica el padding.
 
-`.ox-kv` para pares clave/valor (`__k` / `__v`). `.ox-stat` para una cifra
-grande (`__value` / `__unit` / `__label`).
+`.ox-kv` para pares clave/valor (`__k` / `__v`). El valor va en **una línea** y
+lo que no entra se elipsa; el que tiene que envolver —un SMILES, un hash largo—
+lo pide con `.ox-kv__v--wrap`. `.ox-stat` para una cifra grande (`__value` /
+`__unit` / `__label`).
 
 `.ox-chip` (+ `--mono` / `--outline` / `--danger`) · `.ox-avatar` (+ `--lg`) ·
 `.ox-empty` (`__title` / `__text`) · `.ox-skeleton` · `.ox-iconcell`.

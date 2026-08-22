@@ -106,6 +106,29 @@ export function status(state, { shape = 'circle', label } = {}) {
     ${mark(state, shape)}<span>${esc(label ?? STATE_LABEL[state] ?? state)}</span></span>`;
 }
 
+/**
+ * Una ruta que, cuando no entra, se recorta por el medio.
+ *
+ * Acá solo se parte en dos: la cabeza —que es la que cede— y los últimos
+ * `colas` segmentos, que son los que identifican la carpeta y quedan a salvo.
+ * El recorte de verdad lo hace `.ox-path` en CSS, porque cuánto entra depende
+ * del ancho de la ventana y eso desde JS habría que volver a medirlo en cada
+ * resize.
+ *
+ * El texto sigue completo en el DOM: recortar es visual, y arrastrar sobre la
+ * ruta la copia entera, con el pedazo escondido incluido.
+ */
+export function path(ruta, { colas = 2 } = {}) {
+  const s = String(ruta ?? '');
+  // El separador viaja con el segmento que abre, así ninguno de los dos pedazos
+  // empieza ni termina con una barra suelta al volver a unirlos.
+  const partes = s.split(/(?=[\\/])/);
+  const corte = Math.max(0, partes.length - colas);
+  return `<span class="ox-path">`
+    + `<span class="ox-path__head">${esc(partes.slice(0, corte).join(''))}</span>`
+    + `<span class="ox-path__tail">${esc(partes.slice(corte).join(''))}</span></span>`;
+}
+
 /* ── Pintar ──────────────────────────────────────────────────────────────── */
 
 /**

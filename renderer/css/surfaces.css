@@ -188,7 +188,20 @@
   font-size: var(--ox-fs-12);
 }
 .ox-kv__k { color: var(--ox-text-4); }
-.ox-kv__v { color: var(--ox-text-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; user-select: text; }
+/* `text-overflow: ellipsis` sin `white-space: nowrap` no hace absolutamente
+   nada: la línea envuelve, y lo que igual no entra —una ruta, un id largo— se
+   corta al aire contra el borde de la tarjeta. La elipsis estaba declarada
+   desde el principio; lo que faltaba era dejarla trabajar. El valor que SÍ
+   tiene que envolver lo pide con --wrap, así queda dicho en el markup. */
+.ox-kv__v {
+  color: var(--ox-text-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+.ox-kv__v--wrap { white-space: normal; overflow-wrap: anywhere; }
 
 /* ── Lista ────────────────────────────────────────────────────────────────── */
 .ox-list { display: flex; flex-direction: column; gap: 2px; }

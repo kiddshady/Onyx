@@ -13,7 +13,7 @@ import { Tooltip, Toast, Menu, Modal } from './overlays.js';
 import Palette from './palette.js';
 import Router from './router.js';
 import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher } from './motion.js';
-import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken } from './ui.js';
+import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken, path } from './ui.js';
 import { fmtBytes, relTime, fmtDate, plural, monogram } from './format.js';
 import { designHTML, wireDesign } from './design-view.js';
 
@@ -491,8 +491,12 @@ function updateChrome() {
   const saved = document.querySelector('#stat-saved .ox-statusbar__value');
   if (saved) saved.textContent = S.lastSaved ? relTime(S.lastSaved) : '—';
 
+  /* La carpeta de datos, recortada por el medio: en un rail de 212px no entra
+     entera ninguna ruta, y la cola —el nombre de la app y `data`— es lo único
+     que dice de cuál se trata. El tooltip la sigue mostrando completa. */
+  const dir = S.info?.dataDir || '';
   document.getElementById('rail-foot').innerHTML =
-    `<span class="ox-meta ox-truncate" data-tip="${esc(S.info?.dataDir || '')}">${esc(S.info?.dataDir || '')}</span>`;
+    dir ? `<div class="ox-meta" data-tip="${esc(dir)}">${path(dir)}</div>` : '';
 
   const ctx = document.getElementById('titlebar-context');
   const it = Router.name === 'item' ? item(Router.param) : null;

@@ -12,7 +12,7 @@ import { Icons } from './icons.js';
 import { Toast, Menu, Modal } from './overlays.js';
 import Palette from './palette.js';
 import { bindSwitcher, bindStepper } from './motion.js';
-import { mark, status, copy, colorToken } from './ui.js';
+import { mark, status, copy, colorToken, path } from './ui.js';
 
 /* ── Las tres perillas ───────────────────────────────────────────────────────
    Los presets del acento. El nombre importa: son las cinco temperaturas que
@@ -137,6 +137,19 @@ export function designHTML() {
           <div class="ox-eyebrow">Versalita espaciada</div>
           <div class="ox-mono">n-0007 · 42.3k · 1m 12s · C:\\tools\\Onyx</div>
         </div>`)}
+
+      ${section('Texto que no entra', 'Recortar tiene dos formas y no son intercambiables. Un <b>nombre</b> se corta por la cola, que es donde deja de importar. Una <b>ruta</b> se corta por el medio: el principio lo comparten todas y el final es lo único que la identifica, así que <span class="ox-mono">.ox-truncate</span> sobre una ruta deja justo la mitad que no informa. Y ojo con <span class="ox-mono">.ox-truncate</span> sobre un <span class="ox-mono">&lt;span&gt;</span> suelto: en un elemento <i>inline</i> <span class="ox-mono">overflow</span> no aplica, la clase no hace nada y el texto se corta al aire — por eso la clase trae <span class="ox-mono">display:block</span>.', `
+        <div class="ox-card" style="max-width:320px"><div class="ox-card__body ox-col" style="gap:16px">
+          <div class="ox-col" style="gap:6px">
+            <span class="ox-eyebrow">.ox-truncate · por la cola</span>
+            <div class="ox-truncate">Configuración de despliegue del entorno de staging</div>
+            <div class="ox-truncate ox-mono ox-dim">C:\\Users\\fulano\\AppData\\Roaming\\Onyx\\data</div>
+          </div>
+          <div class="ox-col" style="gap:6px">
+            <span class="ox-eyebrow">.ox-path · por el medio</span>
+            <div class="ox-mono ox-dim">${path('C:\\Users\\fulano\\AppData\\Roaming\\Onyx\\data')}</div>
+          </div>
+        </div></div>`)}
 
       ${section('Estado', 'La pieza central. La <b>forma</b> dice qué es la cosa, la <b>luminancia</b> si está viva, y el <b>movimiento</b> es exclusivo de lo que corre ahora mismo. Con eso se lee una pantalla entera sin un solo color — que es el punto: así el rojo queda libre para significar «se rompió».', `
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px 12px">

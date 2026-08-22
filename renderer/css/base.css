@@ -143,12 +143,41 @@ p, code, pre,
 .ox-dim  { color: var(--ox-text-3); }
 .ox-dim2 { color: var(--ox-text-4); }
 .ox-danger { color: var(--ox-danger); }
+
+/* `display: block` no es decoración: sobre un elemento INLINE —un <span> suelto
+   dentro de un div— `overflow` y `text-overflow` no aplican, la clase no hace
+   absolutamente nada y el texto termina cortado al aire contra el contenedor.
+   Se notaba solo donde el span no era ítem de un flex (que lo blockifica), y
+   por eso pasó desapercibido tanto tiempo: en los menús y en la paleta anda. */
 .ox-truncate {
+  display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Una ruta larga se recorta por el MEDIO, nunca por la cola.
+   El principio lo comparten todas —C:\Users\fulano\AppData\Roaming\…— y el
+   final es lo único que dice de qué carpeta se está hablando. `ox-truncate` a
+   secas deja «C:\Users\fulano\AppData\Roam…», que es justo la mitad que no
+   informa; y sin recorte ninguno el texto se corta al aire contra el borde.
+
+   Cuánto entra depende del ancho de la ventana, así que el recorte lo decide el
+   CSS y no un conteo de caracteres en JS —que tendría que volver a medir en
+   cada resize—. La cola NO se encoge (`flex: 0 0 auto`): toda la elipsis se la
+   come la cabeza, que es la que sobra. El `max-width` es el caso degenerado —
+   una cola más ancha que la caja entera—: ahí se recorta con la suya en vez de
+   empujar a la cabeza fuera de la vista. */
+.ox-path { display: flex; min-width: 0; }
+.ox-path__head,
+.ox-path__tail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ox-path__head { flex: 0 1 auto; min-width: 2ch; }
+.ox-path__tail { flex: 0 0 auto; max-width: 100%; }
 
 /* ── Layout utilitario ───────────────────────────────────────────────────── */
 .ox-row  { display: flex; align-items: center; gap: var(--ox-2); }
