@@ -40,17 +40,13 @@
   transition: opacity var(--ox-t-3) var(--ox-ease-soft);
 }
 
-/* Formas — la identidad del nodo */
-.ox-mark--diamond .ox-mark__core { border-radius: 1.5px; transform: rotate(45deg) scale(.84); }
-.ox-mark--diamond .ox-mark__halo { border-radius: 2px; transform: rotate(45deg) scale(.8); }
-.ox-mark--square  .ox-mark__core { border-radius: 1.5px; }
-.ox-mark--square  .ox-mark__halo { border-radius: 3px; }
-.ox-mark--hex     .ox-mark__core {
-  border-radius: 0;
-  width: 9px; height: 10px;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-}
-.ox-mark--hex .ox-mark__halo { clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); box-shadow: none; }
+/* Formas — la identidad del nodo.
+   Dos: círculo (el default) y cuadrado. El rombo y el hexágono se sacaron a
+   propósito — la esquina en punta y la silueta de seis lados desentonan con
+   el redondeo sutil del resto del sistema. Si hace falta una tercera forma,
+   que salga de la misma familia geométrica, no de sumar aristas. */
+.ox-mark--square .ox-mark__core { border-radius: 1.5px; }
+.ox-mark--square .ox-mark__halo { border-radius: 3px; }
 
 /* Estados */
 .ox-mark[data-state='idle']    { color: var(--ox-text-4); }
@@ -58,7 +54,6 @@
 
 .ox-mark[data-state='queued']  { color: var(--ox-text-4); }
 .ox-mark[data-state='queued']  .ox-mark__core { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; transform: scale(.8); }
-.ox-mark--diamond[data-state='queued'] .ox-mark__core { transform: rotate(45deg) scale(.7); }
 
 .ox-mark[data-state='running'] { color: var(--ox-accent); }
 .ox-mark[data-state='running'] .ox-mark__halo { opacity: 1; animation: ox-breathe 2.2s var(--ox-ease-both) infinite; }

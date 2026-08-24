@@ -79,7 +79,7 @@ export function colorToken(nombre) {
    justamente el punto: el rojo queda libre para significar "se rompió". */
 
 /** Formas disponibles. Sumá las tuyas mapeando tipo → forma. */
-export const SHAPES = ['circle', 'square', 'diamond', 'hex'];
+export const SHAPES = ['circle', 'square'];
 
 export const STATE_LABEL = {
   idle: 'Sin usar',

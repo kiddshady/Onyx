@@ -156,12 +156,12 @@ export function designHTML() {
           ${['idle', 'queued', 'running', 'waiting', 'done', 'skipped', 'failed'].map((s) => `
             <div class="ox-col" style="gap:8px">${status(s)}
               <div class="ox-row" style="gap:10px;padding-left:2px">
-                ${mark(s, 'circle')}${mark(s, 'square')}${mark(s, 'diamond')}${mark(s, 'hex')}
+                ${mark(s, 'circle')}${mark(s, 'square')}
               </div>
             </div>`).join('')}
         </div>
         <div class="ox-row ox-meta ox-dim2" style="gap:20px;margin-top:22px;flex-wrap:wrap">
-          ${[['circle', 'círculo'], ['square', 'cuadrado'], ['diamond', 'rombo'], ['hex', 'hexágono']]
+          ${[['circle', 'círculo'], ['square', 'cuadrado']]
             .map(([k, label]) => `<span class="ox-row" style="gap:7px">${mark('done', k)}${label}</span>`).join('')}
         </div>`)}
 

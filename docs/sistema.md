@@ -300,14 +300,16 @@ lo pide con `.ox-kv__v--wrap`. `.ox-stat` para una cifra grande (`__value` /
 ### Estado
 
 ```html
-<span class="ox-mark ox-mark--diamond" data-state="running">
+<span class="ox-mark ox-mark--square" data-state="running">
   <span class="ox-mark__halo"></span><span class="ox-mark__core"></span>
 </span>
 ```
 
 Usá los helpers de `ui.js`: `mark(state, shape)` y `status(state, {shape, label})`.
 
-**Formas:** `circle` · `square` · `diamond` · `hex`.
+**Formas:** `circle` (el default) · `square`. Hubo un rombo y un hexágono y se
+sacaron: la punta y la silueta de seis lados no pegan con el redondeo sutil del
+resto. Una forma nueva tiene que salir de la misma familia, no de sumar aristas.
 **Estados:** `idle` · `queued` · `running` · `waiting` · `done` · `skipped` ·
 `failed`.
 
