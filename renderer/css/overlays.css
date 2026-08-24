@@ -96,9 +96,26 @@
 .ox-menuitem:hover, .ox-menuitem.is-active { background: var(--ox-wash-2); color: var(--ox-text); }
 .ox-menuitem:hover .ox-icon, .ox-menuitem.is-active .ox-icon { color: var(--ox-text-2); }
 .ox-menuitem.is-selected .ox-icon:last-child { color: var(--ox-accent); }
-.ox-menuitem--danger { color: var(--ox-danger); }
-.ox-menuitem--danger .ox-icon { color: var(--ox-danger); }
-.ox-menuitem--danger:hover { background: var(--ox-danger-wash); color: var(--ox-danger); }
+/* El peligro tiene que ganarle al resaltado, y por especificidad venía
+   perdiendo. `.ox-menuitem:hover .ox-icon` es (0,3,0) y `.ox-menuitem--danger
+   .ox-icon` es (0,2,0): al pasar el mouse por encima, el tachito se volvía gris
+   mientras el texto y el fondo seguían rojos —el ícono decía una cosa y el
+   resto de la fila decía otra—. Con is-active, que es el resaltado del teclado,
+   era peor: se caía TODO el rojo y Eliminar quedaba igual que Duplicar.
+
+   El arreglo no es inflar la especificidad con un truco, es nombrar los tres
+   estados. Reposo, mouse encima y foco de teclado son el mismo item peligroso y
+   se pintan igual; escribirlos así los empata con las reglas de arriba y, al
+   venir después, ganan. De paso el que navega con el teclado ve lo mismo que el
+   que navega con el mouse, que hasta acá no pasaba. */
+.ox-menuitem--danger,
+.ox-menuitem--danger:hover,
+.ox-menuitem--danger.is-active { color: var(--ox-danger); }
+.ox-menuitem--danger:hover,
+.ox-menuitem--danger.is-active { background: var(--ox-danger-wash); }
+.ox-menuitem--danger .ox-icon,
+.ox-menuitem--danger:hover .ox-icon,
+.ox-menuitem--danger.is-active .ox-icon { color: var(--ox-danger); }
 .ox-menuitem__key { margin-left: auto; font-size: var(--ox-fs-10); color: var(--ox-text-4); }
 .ox-menu__sep { height: 1px; margin: var(--ox-1) var(--ox-2); background: var(--ox-line); }
 .ox-menu__label {

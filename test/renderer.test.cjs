@@ -172,6 +172,53 @@ app.whenReady().then(async () => {
     const r=m.getBoundingClientRect(); return {t:Math.round(r.top),l:Math.round(r.left),b:Math.round(r.bottom),rt:Math.round(r.right)}; })()`);
   ok('el menú abre dentro de la ventana',
     menu && menu.t >= 0 && menu.l >= 0 && menu.b <= H && menu.rt <= W, JSON.stringify(menu));
+
+  /* ── El item peligroso se pinta entero, y en los tres estados ──────────────
+     El ícono venía perdiendo por especificidad contra el resaltado: pasabas el
+     mouse por Eliminar, el texto y el fondo se ponían rojos, y el tachito se
+     quedaba gris —el ícono decía una cosa y el resto de la fila otra—. Con el
+     resaltado del teclado se caía hasta el texto.
+
+     Se mide comparando el ícono contra el color del PROPIO item, no contra un
+     literal: lo que tiene que ser cierto es que digan lo mismo, sea cual sea el
+     rojo del tema. Y aparte se exige que ese color SEA el token de peligro,
+     porque «los dos grises» también empatan y no es lo que se quiere.
+
+     Ojo con el cuándo: estas propiedades tienen transición declarada, así que
+     leerlas apenas cambia el estado devuelve el valor de ARRANQUE y el chequeo
+     da verde con el bug puesto. Cada lectura espera a que la transición
+     termine; sin esa espera, esto no prueba nada. */
+  const pintaDanger = async (estado) => {
+    await sleep(500);
+    return js(`(() => {
+      const it = document.querySelector('.ox-menuitem--danger');
+      if (!it) return null;
+      const sonda = document.createElement('span');
+      sonda.style.color = getComputedStyle(document.documentElement).getPropertyValue('--ox-danger');
+      document.body.appendChild(sonda);
+      const rojo = getComputedStyle(sonda).color;
+      sonda.remove();
+      return { estado: ${JSON.stringify(estado)}, rojo,
+               texto: getComputedStyle(it).color,
+               icono: getComputedStyle(it.querySelector('.ox-icon')).color };
+    })()`);
+  };
+  const lejos = () => win.webContents.sendInputEvent({ type: 'mouseMove', x: 4, y: H - 4 });
+  const donde = await js(`(() => { const it=document.querySelector('.ox-menuitem--danger'); if(!it) return null;
+    const r=it.getBoundingClientRect(); return {x:Math.round(r.left+r.width/2),y:Math.round(r.top+r.height/2)}; })()`);
+  lejos();
+  const reposo = await pintaDanger('en reposo');
+  await js(`document.querySelector('.ox-menuitem--danger').classList.add('is-active'); true`);
+  const teclado = await pintaDanger('resaltado por teclado');
+  await js(`document.querySelector('.ox-menuitem--danger').classList.remove('is-active'); true`);
+  await sleep(400);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: donde.x, y: donde.y });
+  const mouse = await pintaDanger('con el mouse encima');
+  lejos();
+  for (const e of [reposo, teclado, mouse]) {
+    ok(`Eliminar es de color peligro ${e?.estado}`, !!e && e.texto === e.rojo, JSON.stringify(e));
+    ok(`y su tachito también ${e?.estado}`, !!e && e.icono === e.rojo, JSON.stringify(e));
+  }
   await js(`document.body.click(); true`); await sleep(300);
 
   await click('#btn-palette');
