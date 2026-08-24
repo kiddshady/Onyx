@@ -249,6 +249,23 @@
   position: relative;
 }
 
+/* La barra del panel nace en el BORDE, no 24px adentro.
+
+   La sangría de acá arriba la lleva el padre, así que la caja que scrollea
+   termina antes del borde y la barra se dibujaba ahí, flotando separada del
+   inspector: se leía como un elemento suelto en vez de como el borde de algo.
+   En la vista simple no pasa —ahí la sangría la lleva el propio `.ox-scroll`,
+   con lo cual su caja ya llega al borde de la ventana.
+
+   Se estira la caja hasta el borde y se le devuelve la sangría como padding
+   propio. El contenido NO se mueve: termina exactamente donde terminaba —la
+   barra ocupa el mismo ancho de un lado o del otro— y lo único que cambia es
+   dónde nace. */
+.ox-viewbody__main > .ox-scroll {
+  margin-right: calc(var(--ox-6) * -1);
+  padding-right: var(--ox-6);
+}
+
 /* Arriba la vista corta al aire — el viewhead no lleva línea — y ahí el fade es
    lo único que avisa que hay más. Abajo cierra la statusbar con la suya, así que
    el corte ya está explicado y el esfumado solo taparía la línea. */
@@ -280,8 +297,13 @@
   flex: 0 0 auto;
 }
 .ox-inspector__body { flex: 1 1 auto; min-height: 0; padding-left: var(--ox-4); padding-right: var(--ox-4); }
-/* Arriba corta al aire (el head no lleva línea) y abajo contra el pie, que sí. */
-.ox-inspector__body:has(~ .ox-inspector__foot) { --ox-fade-bottom: 0px; }
+/* Arriba corta al aire: el head no lleva línea. Abajo NUNCA — si hay pie, lo
+   cierra el pie; si no lo hay, lo cierra la línea de la statusbar. Con solo la
+   primera condición, un inspector sin pie recuperaba el esfumado y se lo
+   encimaba a esa línea: la ensucia, y además miente, porque el contenido no se
+   pierde en la nada sino que muere contra un borde. */
+.ox-inspector__body:has(~ .ox-inspector__foot),
+.ox-app:has(> .ox-statusbar) .ox-inspector__body { --ox-fade-bottom: 0px; }
 .ox-inspector__foot {
   padding: var(--ox-3) var(--ox-4);
   box-shadow: inset 0 1px 0 var(--ox-line);

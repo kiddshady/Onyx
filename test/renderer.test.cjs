@@ -105,6 +105,66 @@ app.whenReady().then(async () => {
   ok('las migas llevan de vuelta', await js(`!!document.querySelector('[data-goto="items"]')`));
   ok('la titlebar muestra el contexto', (await js(`document.getElementById('titlebar-context').textContent.trim()`)) === 'Humo');
 
+  /* ── 4-bis. El layout de dos paneles, medido ────────────────────────────────
+     Dos cosas que solo se ven en esta vista y que ningún test miraba.
+
+     La barra del panel tiene que nacer en el BORDE del inspector. La sangría
+     lateral la pone el padre, así que la caja que scrollea terminaba 24px
+     antes y la barra flotaba en el medio, separada de todo. Se mide el hueco y
+     no la existencia de la regla: devolverle la sangría al contenedor la manda
+     de vuelta al medio sin romper nada más, o sea en silencio.
+
+     Y el cuerpo del inspector no lleva esfumado abajo NUNCA: si hay pie lo
+     cierra el pie, y si no lo hay lo cierra la línea de la statusbar. Antes
+     solo contemplaba el primer caso, así que un inspector sin pie recuperaba
+     el fade y se lo encimaba a esa línea. Para probarlo hay que sacar el pie,
+     porque la vitrina siempre trae uno. */
+  console.log('\n4-bis. El layout de dos paneles');
+
+  const barra = await js(`(() => {
+    const sc = document.querySelector('.ox-viewbody__main > .ox-scroll');
+    const insp = document.querySelector('.ox-inspector');
+    if (!sc || !insp) return null;
+    return {
+      hueco: Math.round(insp.getBoundingClientRect().left - sc.getBoundingClientRect().right),
+      barra: sc.offsetWidth - sc.clientWidth,
+      scrollea: sc.scrollHeight - sc.clientHeight > 1,
+    };
+  })()`);
+  ok('la barra del panel nace pegada al inspector',
+    barra && barra.hueco === 0, JSON.stringify(barra));
+
+  /* Sin scroll REAL no hay nada que esfumar y `is-bottom` apaga el fade por su
+     cuenta: la medición daría 0px tenga o no tenga la regla puesta, y el
+     chequeo pasaría siempre. Por eso se fuerza contenido alto y una posición
+     intermedia — el único estado donde ese fade existiría de verdad. */
+  const fade = await js(`(async () => {
+    const body = document.querySelector('.ox-inspector__body');
+    const pie = document.querySelector('.ox-inspector__foot');
+    if (!body || !pie) return null;
+    const relleno = document.createElement('div');
+    relleno.style.height = '1200px';
+    body.appendChild(relleno);
+    const medir = async () => {
+      body.scrollTop = 200;
+      body.dispatchEvent(new Event('scroll'));
+      await new Promise((r) => setTimeout(r, 450));
+      return getComputedStyle(body).getPropertyValue('--ox-fade-bottom').trim();
+    };
+    const con = await medir();
+    const padre = pie.parentElement;
+    const sig = pie.nextSibling;
+    pie.remove();
+    const sin = await medir();
+    padre.insertBefore(pie, sig);
+    relleno.remove();
+    body.scrollTop = 0;
+    body.dispatchEvent(new Event('scroll'));
+    return { conPie: con, sinPie: sin };
+  })()`);
+  ok('el cuerpo del inspector no esfuma abajo, con pie o sin él',
+    fade && fade.conPie === '0px' && fade.sinPie === '0px', JSON.stringify(fade));
+
   console.log('\n5. Overlays: dónde caen, no solo si existen');
   await click('[data-menu="item"]');
   await sleep(400);
