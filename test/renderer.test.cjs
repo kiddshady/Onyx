@@ -545,6 +545,47 @@ app.whenReady().then(async () => {
   ok('pero el contenido igual queda separado del filo',
     tarjetas.every((t) => t.aire >= 12), JSON.stringify(tarjetas.map((t) => t.aire)));
 
+  /* ── 8-quinquies. Las columnas numéricas alinean su título con sus cifras ──
+     `.ox-table th` trae text-align:left con especificidad (0,1,1) y le gana a
+     `.ox-td--num`, que pide right con (0,1,0). Sin la regla que lo corrige, un
+     <th> marcado como numérico se queda a la izquierda mientras sus celdas van
+     a la derecha, y la columna se lee corrida: los valores no caen debajo de
+     su propio título. Nada parece roto, solo raro.
+
+     Salió de una app con una tabla de precios de cuatro columnas numéricas,
+     donde el desfase se midió en 82px. Acá hay una sola columna así, que
+     alcanza para que el defecto no vuelva a entrar.
+
+     Se mide el borde derecho del TEXTO con un Range y no el de la celda: el de
+     la celda abarca la columna entera y daría el mismo número estuviera el
+     texto donde estuviera — justo el defecto que se busca. */
+  console.log('\n8-quinquies. Las columnas numéricas de la tabla');
+  const columnas = await js(`(() => {
+    const t = document.querySelector('.ox-table');
+    if (!t) return { error: 'no hay tabla en la vitrina' };
+    const fila = t.querySelector('tbody tr');
+    if (!fila) return { error: 'la tabla no tiene filas' };
+    const ths = [...t.querySelectorAll('thead th')];
+    const tds = [...fila.querySelectorAll('td')];
+    const derecha = (el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el);
+      return Math.round(r.getBoundingClientRect().right);
+    };
+    return ths.map((th, i) => (th.classList.contains('ox-td--num') && tds[i]
+      ? {
+          col: th.textContent.trim(),
+          align: getComputedStyle(th).textAlign,
+          d: Math.abs(derecha(th) - derecha(tds[i])),
+        }
+      : null)).filter(Boolean);
+  })()`);
+  ok('había una columna numérica que medir',
+    Array.isArray(columnas) && columnas.length > 0, JSON.stringify(columnas));
+  ok('su título cae sobre sus cifras',
+    Array.isArray(columnas) && columnas.length > 0 && columnas.every((c) => c.d <= 2),
+    JSON.stringify(columnas));
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;
