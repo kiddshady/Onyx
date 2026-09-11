@@ -586,6 +586,80 @@ app.whenReady().then(async () => {
     Array.isArray(columnas) && columnas.length > 0 && columnas.every((c) => c.d <= 2),
     JSON.stringify(columnas));
 
+  /* ── La cápsula del segmentado cae SOBRE su opción ─────────────────────────
+     Se compara el centro del texto (un Range, no la celda) con el centro de la
+     cápsula (el ::before). El bug que caza: en una celda de tabla las opciones
+     no medían lo mismo y la cápsula, calculada como ancho/n, caía 10px corrida
+     — el texto parecía descentrado. La vitrina tiene el segmentado en un flex;
+     el caso de la tabla se arma acá mismo, con dos opciones de distinto largo,
+     cableado con el mismo bindSwitcher que usa la app. */
+  console.log('\n8-sexies. La cápsula del segmentado cae sobre su opción');
+  const capsula = (sel) => js(`(() => {
+    const seg = document.querySelector(${JSON.stringify(sel)});
+    if (!seg) return null;
+    const s = seg.getBoundingClientRect();
+    const cs = getComputedStyle(seg, '::before');
+    const x = new DOMMatrixReadOnly(cs.transform).m41 + parseFloat(cs.left);
+    const centroCapsula = x + parseFloat(cs.width) / 2;
+    const act = seg.querySelector('.ox-segmented__opt.is-active');
+    const r = document.createRange(); r.selectNodeContents(act);
+    const t = r.getBoundingClientRect();
+    const centroTexto = (t.left + t.right) / 2 - s.left;
+    const anchos = [...seg.querySelectorAll('.ox-segmented__opt')].map((o) => +o.getBoundingClientRect().width.toFixed(1));
+    return { txt: act.textContent.trim(), desfase: +Math.abs(centroCapsula - centroTexto).toFixed(2), anchos };
+  })()`);
+  let cap = await capsula('#demo-seg');
+  ok('en el flex de la vitrina, centrada sobre la activa', cap && cap.desfase <= 1, JSON.stringify(cap));
+  await click('#demo-seg [data-value="c"]');
+  await sleep(500);
+  cap = await capsula('#demo-seg');
+  ok('y sigue centrada después de viajar', cap && cap.txt === 'Tabla' && cap.desfase <= 1, JSON.stringify(cap));
+
+  await js(`(async () => {
+    const { bindSwitcher } = await import('./js/motion.js');
+    const t = document.createElement('table');
+    t.className = 'ox-table'; t.id = 'seg-en-tabla';
+    t.innerHTML = '<tbody><tr class="ox-tr"><td>fila</td><td class="ox-td--tight">'
+      + '<div class="ox-segmented" id="seg-tabla">'
+      + '<button class="ox-segmented__opt is-active" data-value="a">Descendente</button>'
+      + '<button class="ox-segmented__opt" data-value="b">Asc</button>'
+      + '</div></td></tr></tbody>';
+    document.querySelector('.ox-table').after(t);
+    bindSwitcher(t.querySelector('#seg-tabla'), () => {});
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return true;
+  })()`);
+  await sleep(300);
+  cap = await capsula('#seg-tabla');
+  ok('en una celda de tabla las opciones miden lo mismo',
+    cap && cap.anchos.length === 2 && Math.abs(cap.anchos[0] - cap.anchos[1]) <= 0.5, JSON.stringify(cap));
+  ok('y la cápsula cae centrada sobre la larga', cap && cap.txt === 'Descendente' && cap.desfase <= 1, JSON.stringify(cap));
+  await click('#seg-tabla [data-value="b"]');
+  await sleep(500);
+  cap = await capsula('#seg-tabla');
+  ok('y sobre la corta', cap && cap.txt === 'Asc' && cap.desfase <= 1, JSON.stringify(cap));
+  await js(`(() => { document.getElementById('seg-en-tabla')?.remove(); return true; })()`);
+
+  /* ── El estado vacío no agranda el ícono de su botón ───────────────────────
+     `.ox-empty .ox-icon` (descendiente) le daba 34px también al ícono de un
+     botón de acción dentro del empty(); ahora es solo el hijo directo. */
+  console.log('\n8-septies. El estado vacío no agranda el ícono de su botón');
+  const vacio = await js(`(async () => {
+    const { empty } = await import('./js/ui.js');
+    const { Icons } = await import('./js/icons.js');
+    const caja = document.createElement('div');
+    caja.id = 'vacio-prueba';
+    caja.innerHTML = empty({ icon: 'inbox', title: 'Nada', text: 'Todavía',
+      actions: '<button class="ox-btn ox-btn--secondary">' + Icons.svg('search') + ' Ir a buscar</button>' });
+    document.querySelector('.ox-table').after(caja);
+    const grande = caja.querySelector('.ox-empty > .ox-icon').getBoundingClientRect().width;
+    const chico = caja.querySelector('.ox-btn .ox-icon').getBoundingClientRect().width;
+    caja.remove();
+    return { grande, chico };
+  })()`);
+  ok('el ícono del vacío es el grande', vacio && vacio.grande === 34, JSON.stringify(vacio));
+  ok('y el del botón es el de un botón', vacio && vacio.chico === 14, JSON.stringify(vacio));
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;

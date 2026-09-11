@@ -256,6 +256,20 @@ Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 `.ox-tabs`: maneja el activo, hace viajar el indicador y reajusta al
 redimensionar.
 
+**La cápsula del segmentado copia la geometría real de la opción activa**
+(`--seg-x` / `--seg-w`, como el subrayado de los tabs), no `ancho / n`. Y el
+control lleva `width: max-content` para que las opciones midan lo mismo
+también adentro de una celda de tabla: el `1fr` reparte parejo solo con ancho
+indefinido, y una celda `.ox-td--tight` le da un ancho definido igual a su
+mínimo, sin espacio libre que repartir. Se descubrió en una tabla con un
+segmentado de dos opciones de distinto largo: salían de 71 y 50px, y la cápsula
+caía 10px corrida de su texto. El de humo mide el centro del texto contra el
+centro de la cápsula, en un flex y en una tabla.
+
+**El ícono grande del estado vacío es solo el hijo directo** (`.ox-empty >
+.ox-icon`): con el selector descendiente, un botón de acción con ícono adentro
+del `empty()` heredaba los 34px y salía un botón con lupa gigante.
+
 ### Un botón nuevo declara SU padding
 
 `base.css` pone `button { padding: 0 }`. No lo saques y no confíes en el padding
