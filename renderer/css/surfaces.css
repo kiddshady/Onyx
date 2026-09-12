@@ -109,7 +109,8 @@
    La jerarquía la construye la ELEVACIÓN, no un borde marcado. El hairline
    existe para definir el filo, no para separar planos. */
 .ox-card {
-  background: var(--ox-s2);
+  --ox-surface: var(--ox-s2);
+  background: var(--ox-surface);
   border-radius: var(--ox-r-lg);
   box-shadow: var(--ox-hairline), var(--ox-e2);
   transition: var(--tr-surface);
@@ -269,7 +270,11 @@
   letter-spacing: var(--ox-track-caps);
   text-transform: uppercase;
   color: var(--ox-text-4);
-  background: var(--ox-bg);
+  /* Opaco porque es sticky y las filas pasan por debajo. Del color de la
+     superficie donde cayó la tabla —la vista, una card, un modal— vía
+     --ox-surface, y no de un plano fijo: con --ox-bg a secas, la tabla dentro
+     de una card llevaba el encabezado más oscuro que sus propias filas. */
+  background: var(--ox-surface);
   box-shadow: inset 0 -1px 0 var(--ox-line);
   white-space: nowrap;
   user-select: none;

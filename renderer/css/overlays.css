@@ -169,7 +169,8 @@
   flex-direction: column;
   margin: 0;
   border-radius: var(--ox-r-xl);
-  background: var(--ox-s3);
+  --ox-surface: var(--ox-s3);
+  background: var(--ox-surface);
   box-shadow: var(--ox-hairline), var(--ox-e4);
   overflow: hidden;
 }

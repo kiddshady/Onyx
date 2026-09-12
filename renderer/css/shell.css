@@ -277,7 +277,8 @@
 .ox-inspector {
   width: var(--ox-inspector);
   flex: 0 0 auto;
-  background: var(--ox-s1);
+  --ox-surface: var(--ox-s1);
+  background: var(--ox-surface);
   box-shadow: inset 1px 0 0 var(--ox-line);
   display: flex;
   flex-direction: column;

@@ -6,11 +6,18 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* `--ox-surface` es «la superficie sobre la que estoy». La declara cada plano
+   que aloja contenido —acá la base; y la card, el inspector y el modal— en el
+   mismo renglón donde pinta su fondo, y pinta CON ella, así las dos no se pueden
+   desencontrar. La lee lo que necesita ser opaco del color de su entorno sin
+   saber dónde cayó: el encabezado sticky de una tabla, que sobre la vista es
+   --ox-bg y dentro de una card es --ox-s2. */
 html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--ox-bg);
+  --ox-surface: var(--ox-bg);
+  background: var(--ox-surface);
 }
 
 body {

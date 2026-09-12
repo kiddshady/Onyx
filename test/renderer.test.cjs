@@ -660,6 +660,37 @@ app.whenReady().then(async () => {
   ok('el ícono del vacío es el grande', vacio && vacio.grande === 34, JSON.stringify(vacio));
   ok('y el del botón es el de un botón', vacio && vacio.chico === 14, JSON.stringify(vacio));
 
+  /* ── El encabezado de la tabla es del color de donde está ──────────────────
+     El <th> es sticky y por eso opaco. Pintaba --ox-bg fijo, y dentro de una
+     card —donde vive la tabla en las apps que salieron de acá— quedaba una
+     banda más oscura que sus propias filas. Ahora lee --ox-surface, que declara
+     cada plano en el renglón donde pinta su fondo. Se mide en los dos
+     hospedadores: la tabla de la vitrina, sobre la vista, y un clon dentro de
+     una card que se arma acá y se saca al final. Y se comprueba que los dos
+     planos sean distintos: si fueran iguales, la prueba no distinguiría nada. */
+  console.log('\n8-octies. El encabezado de la tabla es del color de donde está');
+  const fondos = await js(`(() => {
+    const t = document.querySelector('.ox-table');
+    if (!t) return { error: 'no hay tabla en la vitrina' };
+    const bg = (el) => getComputedStyle(el).backgroundColor;
+    const card = document.createElement('div');
+    card.className = 'ox-card';
+    card.appendChild(t.cloneNode(true));
+    t.after(card);
+    const out = {
+      vista: { th: bg(t.querySelector('th')), plano: bg(document.querySelector('.ox-main')) },
+      card: { th: bg(card.querySelector('th')), plano: bg(card) },
+    };
+    card.remove();
+    return out;
+  })()`);
+  ok('sobre la vista, el th pinta el fondo de la vista',
+    fondos.vista && fondos.vista.th === fondos.vista.plano, JSON.stringify(fondos));
+  ok('dentro de una card, el th pinta la card',
+    fondos.card && fondos.card.th === fondos.card.plano, JSON.stringify(fondos));
+  ok('y los dos planos son distintos entre sí',
+    fondos.vista && fondos.card && fondos.vista.plano !== fondos.card.plano, JSON.stringify(fondos));
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;
