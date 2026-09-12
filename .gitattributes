@@ -1,0 +1,5 @@
+# Todo texto viaja con LF; Windows lo lee igual y el diff no se llena de ruido.
+* text=auto eol=lf
+*.png binary
+*.woff2 binary
+*.ico binary
