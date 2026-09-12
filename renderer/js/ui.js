@@ -144,8 +144,13 @@ export function paint(html) {
   return el;
 }
 
-/** Encabezado de vista: migas, título, subtítulo y acciones a la derecha. */
-export function head({ title, sub, crumbs, actions = '' } = {}) {
+/**
+ * Encabezado de vista: migas, título, subtítulo y acciones a la derecha.
+ * `linea: true` lo cierra con su hairline en vez de cortar al aire — y el shell
+ * le apaga solo el esfumado de arriba al scroll de esa vista. Con inspector no
+ * hace falta pedirla: el shell la pone solo.
+ */
+export function head({ title, sub, crumbs, actions = '', linea = false } = {}) {
   const crumbHTML = crumbs
     ? `<nav class="ox-crumbs">${crumbs
         .map((c, i) => (i ? '<i data-icon="chevronRight"></i>' : '')
@@ -154,7 +159,7 @@ export function head({ title, sub, crumbs, actions = '' } = {}) {
         .join('')}</nav>`
     : '';
   return `
-    <div class="ox-viewhead">
+    <div class="ox-viewhead${linea ? ' ox-viewhead--line' : ''}">
       <div class="ox-viewhead__text ox-grow">
         ${crumbHTML}
         <div class="ox-viewhead__title">${esc(title)}</div>

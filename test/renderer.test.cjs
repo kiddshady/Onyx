@@ -165,6 +165,58 @@ app.whenReady().then(async () => {
   ok('el cuerpo del inspector no esfuma abajo, con pie o sin él',
     fade && fade.conPie === '0px' && fade.sinPie === '0px', JSON.stringify(fade));
 
+  /* ── 4-ter. El encabezado cierra con línea donde hay inspector ─────────────
+     El panel es de otro plano y arranca con un borde duro justo debajo del
+     encabezado; si la columna principal se esfuma arriba, el encabezado se ve
+     derretido de un lado y sólido del otro. Por eso, con inspector, el
+     encabezado trae su hairline SOLO y el scroll de la columna no esfuma
+     arriba — la línea ya es el límite. Una vista simple lo pide con
+     `head({ linea: true })`; sin pedirlo sigue esfumando, y eso también se
+     comprueba: si no, el 0px de arriba podría ser un falso positivo.
+
+     Mismo cuidado que en 4-bis: sin scroll REAL `is-top` apaga el fade por su
+     cuenta, así que se fuerza contenido alto y una posición intermedia. */
+  console.log('\n4-ter. El encabezado cierra con línea donde hay inspector');
+  const medirFadeTop = (sel) => js(`(async () => {
+    const sc = document.querySelector(${JSON.stringify(sel)});
+    if (!sc) return null;
+    const relleno = document.createElement('div');
+    relleno.style.height = '1200px';
+    sc.appendChild(relleno);
+    sc.scrollTop = 200;
+    sc.dispatchEvent(new Event('scroll'));
+    await new Promise((r) => setTimeout(r, 450));
+    const out = { fadeTop: getComputedStyle(sc).getPropertyValue('--ox-fade-top').trim(), scrollea: sc.scrollHeight - sc.clientHeight > 1 };
+    relleno.remove();
+    sc.scrollTop = 0;
+    sc.dispatchEvent(new Event('scroll'));
+    return out;
+  })()`);
+  const sombraHead = () => js(`(() => { const h = document.querySelector('.ox-main > .ox-viewhead'); return h ? getComputedStyle(h).boxShadow : null; })()`);
+  const conInspector = { sombra: await sombraHead(), fade: await medirFadeTop('.ox-viewbody__main > .ox-scroll') };
+  ok('con inspector, el encabezado trae su línea sin pedirla',
+    !!conInspector.sombra && conInspector.sombra !== 'none', JSON.stringify(conInspector));
+  ok('y la columna principal no esfuma arriba',
+    !!conInspector.fade && conInspector.fade.scrollea && conInspector.fade.fadeTop === '0px', JSON.stringify(conInspector));
+
+  await click('[data-view="items"]');
+  await sleep(600);
+  const simple = { sombra: await sombraHead(), fade: await medirFadeTop('.ox-main > .ox-scroll') };
+  ok('la vista simple, sin pedir línea, sigue esfumando arriba',
+    simple.sombra === 'none' && !!simple.fade && simple.fade.scrollea && parseFloat(simple.fade.fadeTop) > 0, JSON.stringify(simple));
+  await js(`document.querySelector('.ox-main > .ox-viewhead').classList.add('ox-viewhead--line'); true`);
+  const pedida = { sombra: await sombraHead(), fade: await medirFadeTop('.ox-main > .ox-scroll') };
+  ok('con la línea pedida, aparece y el esfumado de arriba se apaga',
+    !!pedida.sombra && pedida.sombra !== 'none' && !!pedida.fade && pedida.fade.fadeTop === '0px', JSON.stringify(pedida));
+  await js(`document.querySelector('.ox-main > .ox-viewhead').classList.remove('ox-viewhead--line'); true`);
+  const apiHead = await js(`(async () => { const { head } = await import('./js/ui.js');
+    return { con: head({ title: 'x', linea: true }).includes('ox-viewhead--line'), sin: head({ title: 'x' }).includes('ox-viewhead--line') }; })()`);
+  ok('head({ linea: true }) pone la clase, y sin pedirla no', !!apiHead && apiHead.con && !apiHead.sin, JSON.stringify(apiHead));
+
+  // De vuelta al detalle: lo que sigue abre su menú.
+  ok('vuelve al detalle', await click(`[data-open="${id}"]`));
+  await sleep(800);
+
   console.log('\n5. Overlays: dónde caen, no solo si existen');
   await click('[data-menu="item"]');
   await sleep(400);
