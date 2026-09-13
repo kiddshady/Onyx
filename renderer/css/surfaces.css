@@ -244,7 +244,13 @@
 }
 .ox-listitem__aside { display: flex; align-items: center; gap: var(--ox-3); flex: 0 0 auto; }
 
-/* Las acciones de fila se materializan con el hover, no ocupan sitio siempre. */
+/* Las acciones de fila se materializan con el hover, no ocupan sitio siempre.
+   También con el foco, pero SOLO el de teclado (:focus-visible, como el
+   anillo de base.css): la fila es un botón con tabindex y el clic la deja
+   enfocada. Con :focus-within, las acciones quedaban pegadas en la última
+   fila clickeada aunque el mouse ya se hubiera ido. El :has() cubre el foco
+   de una acción de adentro, para que no se esfumen mientras se tabula entre
+   ellas. */
 .ox-rowactions {
   display: flex;
   align-items: center;
@@ -254,7 +260,7 @@
   transition: opacity var(--ox-t-2) var(--ox-ease-soft), transform var(--ox-t-2) var(--ox-ease);
 }
 .ox-listitem:hover .ox-rowactions,
-.ox-listitem:focus-within .ox-rowactions,
+.ox-listitem:is(:focus-visible, :has(:focus-visible)) .ox-rowactions,
 .ox-tr:hover .ox-rowactions { opacity: 1; transform: none; }
 
 /* ── Tabla ────────────────────────────────────────────────────────────────── */

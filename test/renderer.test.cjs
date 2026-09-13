@@ -743,6 +743,49 @@ app.whenReady().then(async () => {
   ok('y los dos planos son distintos entre sí',
     fondos.vista && fondos.card && fondos.vista.plano !== fondos.card.plano, JSON.stringify(fondos));
 
+  console.log('\n8-nonies. Las acciones de fila no se quedan pegadas al clic');
+  // La fila es un botón con tabindex: un clic de mouse la deja enfocada. Con
+  // :focus-within, las .ox-rowactions quedaban a la vista en la última fila
+  // clickeada aunque el mouse ya se hubiera ido. Con el teclado, en cambio,
+  // SÍ tienen que verse. Va con eventos de mouse de verdad (el click() de
+  // arriba es sintético y no mueve el foco). :focus solo aplica con la
+  // ventana activa, por eso el control positivo con Tab: si el foco lo tiene
+  // otra ventana, falla ese y no pasa nada de casualidad.
+  await click('[data-view="piezas"]');
+  await sleep(400);
+  win.focus();
+  const puntero = (type, x, y, extra = {}) => win.webContents.sendInputEvent({ type, x: Math.round(x), y: Math.round(y), ...extra });
+  const tecla = (keyCode, modifiers = []) => { win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers }); win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers }); };
+  const fila = await js(`(() => {
+    const it = [...document.querySelectorAll('#design-scroll .ox-listitem')].find(x => x.querySelector('.ox-rowactions'));
+    if (!it) return null;
+    it.scrollIntoView({ block: 'center' }); it.id = 'test-fila';
+    const r = it.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height };
+  })()`);
+  ok('la vitrina tiene una fila con acciones, dentro de la ventana', fila && fila.y > 0 && fila.y + fila.h < H, JSON.stringify(fila));
+  const acciones = () => js(`Number(getComputedStyle(document.querySelector('#test-fila .ox-rowactions')).opacity)`);
+  const enfocado = () => js(`document.activeElement?.className || ''`);
+  const sobreFila = [fila.x + 40, fila.y + fila.h / 2];   // sobre la marca de estado, lejos de las acciones
+  await puntero('mouseMove', ...sobreFila);
+  await sleep(400);
+  ok('con el mouse encima se ven', (await acciones()) === 1, `opacity=${await acciones()}`);
+  await puntero('mouseDown', ...sobreFila, { button: 'left', clickCount: 1 });
+  await puntero('mouseUp', ...sobreFila, { button: 'left', clickCount: 1 });
+  await sleep(300);
+  ok('el clic de mouse deja la fila enfocada', /ox-listitem/.test(await enfocado()), await enfocado());
+  const cabecera = await js(`(() => { const r = document.querySelector('.ox-viewhead').getBoundingClientRect(); return { cx: r.left + r.width / 2, y: r.top + 8 }; })()`);
+  await puntero('mouseMove', cabecera.cx, cabecera.y);
+  await sleep(450);
+  ok('al irse el mouse se esfuman, aunque la fila siga enfocada', (await acciones()) === 0 && /ox-listitem/.test(await enfocado()), `opacity=${await acciones()} foco=${await enfocado()}`);
+  tecla('Tab');
+  await sleep(400);
+  ok('Tab entra a la primera acción y vuelven (foco de teclado adentro)', /ox-iconbtn/.test(await enfocado()) && (await acciones()) === 1, `opacity=${await acciones()} foco=${await enfocado()}`);
+  tecla('Tab', ['shift']);
+  await sleep(400);
+  ok('Shift+Tab vuelve a la fila y siguen a la vista (foco de teclado en la fila)', /ox-listitem/.test(await enfocado()) && (await acciones()) === 1, `opacity=${await acciones()} foco=${await enfocado()}`);
+  await js(`document.activeElement?.blur(); document.getElementById('test-fila')?.removeAttribute('id'); true`);
+  await sleep(300);
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;

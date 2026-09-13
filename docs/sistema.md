@@ -306,7 +306,7 @@ el SVG corrido más de medio píxel o desbordando.
 `.ox-section` con `__head` / `__title`. `.ox-sunken` para lo hundido.
 
 `.ox-list` + `.ox-listitem` con `__main` / `__title` / `__sub` / `__aside`.
-Las acciones van en `.ox-rowactions` (aparecen con el hover).
+Las acciones van en `.ox-rowactions` (aparecen con el hover o con el foco de teclado; el clic no las deja pegadas).
 
 `.ox-table` + `.ox-tr`; `.ox-td--num` alinea a la derecha con cifras tabulares,
 `.ox-td--tight` achica el padding. El `<th>` es sticky y por eso opaco: pinta
