@@ -216,6 +216,7 @@
 .ox-toast__main { flex: 1 1 auto; min-width: 0; }
 .ox-toast__title { font-size: var(--ox-fs-12); font-weight: var(--ox-w-medium); color: var(--ox-text); }
 .ox-toast__text { font-size: var(--ox-fs-11); color: var(--ox-text-3); margin-top: 2px; line-height: var(--ox-lh); user-select: text; }
+.ox-toast__action { margin-top: 8px; }
 .ox-toast--error > .ox-icon { color: var(--ox-danger); }
 .ox-toast--error { box-shadow: inset 0 0 0 1px var(--ox-danger-ring), var(--ox-e4); }
 /* La barra de vida: se consume sola y muestra cuánto le queda. */
