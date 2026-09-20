@@ -277,8 +277,13 @@ también adentro de una celda de tabla: el `1fr` reparte parejo solo con ancho
 indefinido, y una celda `.ox-td--tight` le da un ancho definido igual a su
 mínimo, sin espacio libre que repartir. Se descubrió en una tabla con un
 segmentado de dos opciones de distinto largo: salían de 71 y 50px, y la cápsula
-caía 10px corrida de su texto. El de humo mide el centro del texto contra el
-centro de la cápsula, en un flex y en una tabla.
+caía 10px corrida de su texto. El contrapeso es `max-width: 100%`: en un
+contenedor más angosto que la suma de las opciones (el inspector de Quire, 288px
+útiles y `overflow: hidden`) el control a max-content medía 317px y la última
+opción quedaba recortada por el panel; acotado, el `1fr` reparte lo que hay, las
+columnas quedan desparejas solo cuando no entra otra cosa, y la cápsula —que
+mide— las sigue. El de humo mide el centro del texto contra el centro de la
+cápsula en un flex, en una tabla y en un contenedor angosto.
 
 **El ícono grande del estado vacío es solo el hijo directo** (`.ox-empty >
 .ox-icon`): con el selector descendiente, un botón de acción con ícono adentro

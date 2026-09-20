@@ -289,13 +289,22 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
    del control es indefinido (en un flex, por ejemplo); una celda con
    `.ox-td--tight` le da un ancho definido igual a su mínimo y no queda espacio
    libre que repartir: con dos opciones de distinto largo salían de 71 y 50px,
-   y la cápsula —que asumía mitades iguales— caía 10px corrida de su texto. */
+   y la cápsula —que asumía mitades iguales— caía 10px corrida de su texto.
+
+   `max-width: 100%` es el contrapeso del max-content, y salió de Quire: en un
+   inspector de 288px útiles, tres opciones ("Junto al original", "Descargas",
+   "Carpeta…") a max-content medían 317 y el control se salía por debajo del
+   `overflow: hidden` del panel. Acotado al contenedor, el `1fr` reparte lo que
+   hay y las columnas quedan desparejas solo cuando no entra otra cosa —y la
+   cápsula, que mide en vez de suponer, las sigue igual. En la celda de tabla
+   no cambia nada: la celda ya mide lo que el control pide. */
 .ox-segmented {
   position: relative;
   display: inline-grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
   width: max-content;
+  max-width: 100%;
   padding: 2px;
   border-radius: var(--ox-r-sm);
   background: var(--ox-sunken);

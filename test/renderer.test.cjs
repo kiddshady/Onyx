@@ -692,6 +692,38 @@ app.whenReady().then(async () => {
   ok('y sobre la corta', cap && cap.txt === 'Asc' && cap.desfase <= 1, JSON.stringify(cap));
   await js(`(() => { document.getElementById('seg-en-tabla')?.remove(); return true; })()`);
 
+  /* El contrapeso del max-content: en un contenedor más angosto que la suma
+     de las opciones (el inspector de Quire, 288px útiles y overflow hidden),
+     el control tiene que ACOTARSE al contenedor —las columnas quedan
+     desparejas— y la cápsula seguir cayendo sobre su opción. Sin max-width
+     medía 317px y "Carpeta…" quedaba recortada por el panel. */
+  await js(`(async () => {
+    const { bindSwitcher } = await import('./js/motion.js');
+    const c = document.createElement('div');
+    c.id = 'seg-angosto';
+    c.style.cssText = 'width:288px;overflow:hidden;display:flex;flex-direction:column';
+    c.innerHTML = '<div class="ox-segmented" id="seg-estrecho">'
+      + '<button class="ox-segmented__opt" data-value="a">Junto al original</button>'
+      + '<button class="ox-segmented__opt is-active" data-value="b">Descargas</button>'
+      + '<button class="ox-segmented__opt" data-value="c">Carpeta…</button>'
+      + '</div>';
+    document.querySelector('.ox-table').after(c);
+    bindSwitcher(c.querySelector('#seg-estrecho'), () => {});
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return true;
+  })()`);
+  await sleep(300);
+  cap = await capsula('#seg-estrecho');
+  const angosto = await js(`(() => {
+    const c = document.getElementById('seg-angosto').getBoundingClientRect();
+    const s = document.getElementById('seg-estrecho').getBoundingClientRect();
+    return { ancho: +s.width.toFixed(1), seSale: s.right > c.right + 0.5 };
+  })()`);
+  ok('en un contenedor angosto el control no se sale', angosto && !angosto.seSale && angosto.ancho <= 288, JSON.stringify(angosto));
+  ok('y la cápsula cae sobre "Descargas" aunque las columnas sean desparejas',
+    cap && cap.txt === 'Descargas' && cap.desfase <= 1 && cap.anchos[0] > cap.anchos[1], JSON.stringify(cap));
+  await js(`(() => { document.getElementById('seg-angosto')?.remove(); return true; })()`);
+
   /* ── El estado vacío no agranda el ícono de su botón ───────────────────────
      `.ox-empty .ox-icon` (descendiente) le daba 34px también al ícono de un
      botón de acción dentro del empty(); ahora es solo el hijo directo. */
