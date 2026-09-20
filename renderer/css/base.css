@@ -50,8 +50,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
    Se resetea acá y no control por control porque el sistema no puede heredar
    métricas del navegador: cada componente declara las suyas —`.ox-btn`,
    `.ox-select`, `.ox-tab`, `.ox-navitem` ya lo hacían— y el que no declara nada
-   tiene que quedar en cero, no en lo que opine el UA. */
-button { padding: 0; }
+   tiene que quedar en cero, no en lo que opine el UA.
+
+   El borde va en el mismo reset: el UA le pone a todo <button> un `outset` de
+   2px —claro arriba-izquierda, oscuro abajo-derecha— que sobrevive aunque el
+   componente declare fondo y hairline. Toda tarjeta o tecla hecha con <button>
+   salía biselada sin que ninguna regla propia lo dijera. */
+button { padding: 0; border: 0; }
 img, svg { display: block; }
 a { color: inherit; text-decoration: none; }
 
