@@ -304,17 +304,16 @@
    mientras los números se van a la derecha, y la columna entera se lee
    corrida — los valores no caen debajo de su propio título. */
 .ox-table th.ox-td--num { text-align: right; }
-/* Una tabla que es la hija directa de un .ox-scroll. El `th` sticky se engancha
-   al borde del CONTENIDO del scroller, no al de su caja: con el padding-top que
-   el .ox-scroll reserva para el esfumado, el encabezado quedaba --ox-fade más
-   abajo del borde y las filas pasaban por ese hueco, por ENCIMA de sus propios
-   títulos. El respiro pasa a ser margen (afuera del scroll) y arriba no hay
-   fade: el encabezado opaco con su hairline ya es el límite. */
-.ox-scroll:has(> .ox-table) {
-  padding-top: 0;
-  margin-top: var(--ox-fade);
-  --ox-fade-top: 0px;
-}
+/* Una tabla adentro de un .ox-scroll, sea hija directa o metida en una card. El
+   `th` sticky se engancha al borde del CONTENIDO del scroller, no al de su
+   caja: con el padding-top que el .ox-scroll reserva para el esfumado, el
+   encabezado se clavaba --ox-fade más abajo del borde y las filas pasaban por
+   ese hueco, por ENCIMA de sus propios títulos. El top negativo devuelve ese
+   padding y lo clava contra el borde de verdad. Mientras está clavado,
+   scrollFade() le pone .is-stuck-head al scroller y el fade de arriba se va: el
+   encabezado opaco con su hairline ya es el límite. */
+.ox-scroll .ox-table th { top: calc(var(--ox-fade) * -1); }
+.ox-scroll.is-stuck-head { --ox-fade-top: 0px; }
 .ox-td--tight { width: 1%; white-space: nowrap; }
 
 /* ── Tabs ─────────────────────────────────────────────────────────────────────

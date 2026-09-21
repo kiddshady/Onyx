@@ -318,6 +318,10 @@ Las acciones van en `.ox-rowactions` (aparecen con el hover o con el foco de tec
 `--ox-surface`, la superficie donde cayó la tabla, y no un plano fijo — con
 `--ox-bg` a secas, dentro de una card el encabezado quedaba más oscuro que sus
 propias filas. El de humo lo mide sobre la vista y dentro de una card.
+Dentro de un `.ox-scroll` se clava con `top: -var(--ox-fade)`: el sticky se
+engancha al borde del contenido, y sin eso quedaba debajo del padding del
+esfumado con las filas pasando por arriba. Mientras está clavado, el scroller
+lleva `.is-stuck-head` y no esfuma arriba: la hairline ya es el límite.
 
 **`.ox-td--num` va también en el `<th>`, no solo en las celdas.** Si el
 encabezado no la lleva, el título se queda a la izquierda mientras los números
