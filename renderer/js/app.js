@@ -10,7 +10,6 @@
 
 import { Icons } from './icons.js';
 import { Tooltip, Toast, Menu, Modal } from './overlays.js';
-import Palette from './palette.js';
 import Router from './router.js';
 import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher } from './motion.js';
 import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken, path } from './ui.js';
@@ -93,7 +92,6 @@ async function newItemModal() {
     const id = await items.nextId('n');
     const saved = await saveItem({ id, name, note, state: 'idle', createdAt: Date.now() });
     Toast.show({ title: 'Ítem creado', text: `${saved.name} · ${saved.id}`, icon: 'check' });
-    registerCommands();
     Router.go('item', saved.id);
     return saved;
   }, { errorTitle: 'No se pudo crear el ítem' });
@@ -393,7 +391,6 @@ async function renameItem(id) {
   const name = input.value.trim();
   if (!name || name === it.name) return;
   await attempt(() => saveItem({ ...it, name }));
-  registerCommands();
   Router.refresh();
 }
 
@@ -404,7 +401,6 @@ async function duplicateItem(id) {
     const newId = await items.nextId('n');
     await saveItem({ ...it, id: newId, name: `${it.name} copia`, createdAt: Date.now() });
     Toast.show({ title: 'Duplicado', text: newId, icon: 'duplicate' });
-    registerCommands();
     Router.refresh();
   });
 }
@@ -420,7 +416,6 @@ async function deleteItem(id) {
   if (!ok) return;
   await attempt(() => removeItem(id));
   Toast.show({ title: 'Eliminado', text: id, icon: 'trash' });
-  registerCommands();
   // Si estabas parado en el ítem que borraste, no tiene sentido quedarse ahí.
   Router.current.name === 'item' && Router.current.param === id ? Router.go('items') : Router.refresh();
 }
@@ -441,7 +436,6 @@ function wireShell() {
   document.querySelectorAll('.ox-navitem').forEach((b) =>
     b.addEventListener('click', () => Router.go(b.dataset.view)));
 
-  document.getElementById('btn-palette')?.addEventListener('click', () => Palette.toggle());
   document.getElementById('btn-new')?.addEventListener('click', newItemModal);
 
   /* Delegación global: las vistas se repintan enteras, así que enganchar los
@@ -503,21 +497,6 @@ function updateChrome() {
   ctx.innerHTML = it ? `${Icons.svg('file', 'ox-icon--sm')}<span>${esc(it.name)}</span>` : '';
 }
 
-function registerCommands() {
-  Palette.clear();
-  Palette.register([
-    { id: 'new', group: 'Crear', icon: 'plus', label: 'Nuevo ítem', run: newItemModal },
-    { id: 'nav-inicio', group: 'Ir a', icon: 'home', label: 'Inicio', run: () => Router.go('inicio') },
-    { id: 'nav-items', group: 'Ir a', icon: 'list', label: 'Ítems', run: () => Router.go('items') },
-    { id: 'nav-piezas', group: 'Ir a', icon: 'layers', label: 'Piezas', run: () => Router.go('piezas') },
-    { id: 'nav-ajustes', group: 'Ir a', icon: 'settings', label: 'Ajustes', run: () => Router.go('ajustes') },
-    ...S.items.map((it) => ({
-      id: `open-${it.id}`, group: 'Abrir', icon: 'file', label: it.name, hint: it.id,
-      run: () => Router.go('item', it.id),
-    })),
-  ]);
-}
-
 /* ══ Color de la ventana ═════════════════════════════════════════════════════
    --ox-bg está en oklch y Electron solo entiende hex. En vez de mantener el
    valor duplicado a mano, se resuelve acá y se lo mandamos al proceso
@@ -537,7 +516,6 @@ function syncWindowColor() {
 async function boot() {
   Icons.mount(document);      // reemplaza los <i data-icon> del index.html
   Tooltip.init();
-  Palette.init();
   initClickFlash();
   initScrollFades();
   wireShell();
@@ -553,7 +531,6 @@ async function boot() {
     return;
   }
 
-  registerCommands();
   updateChrome();
   Router.onChange(updateChrome);
   Router.go('inicio');

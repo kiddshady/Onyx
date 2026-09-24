@@ -17,7 +17,7 @@ npm run dev
 ```
 
 Y ya tenés una app corriendo: ventana sin frame ni flash blanco, rail de
-navegación, paleta de comandos, overlays propios, datos en disco con escritura
+navegación, overlays propios, datos en disco con escritura
 atómica, y una vitrina viva de todos los primitivos.
 
 ---
@@ -96,12 +96,11 @@ renderer/
     shell.css         Titlebar, rail, statusbar, inspector, encabezado de vista.
     controls.css      Botones, campos, switch, check, slider, segmentado.
     surfaces.css      Cards, listas, tablas, chips, medidores, marcas de estado.
-    overlays.css      Modal, menú, tooltip, toast, paleta de comandos.
+    overlays.css      Modal, menú, tooltip, toast.
   js/
     icons.js          El set base de SVG. Los tuyos con Icons.add({...}).
     motion.js         Salidas animadas, esfumados, indicadores que viajan.
     overlays.js       Tooltip, Toast, Menu, Modal.
-    palette.js        Ctrl+K, con match por subsecuencia.
     router.js         Vistas + parámetro + ciclo de vida.
     ui.js             paint, head, empty, mark, status, attempt, copy.
     format.js         Duraciones, tamaños, tiempo relativo, monogramas.
@@ -159,7 +158,7 @@ y toda la app se siente rota.
 **Cero emojis y cero glifos unicode.** Todo símbolo es un SVG propio sobre
 grilla de 16. Un `✓` o un `↵` se renderiza distinto en cada máquina, no se le
 controla el peso ni el color, y rompe el trazo del resto. Hasta las flechas de
-las teclas en la paleta de comandos son SVG.
+las teclas en un `.ox-kbd` son SVG.
 
 **Nada nativo de Chromium.** El `outline` azul del focus, el `title=` amarillo,
 la scrollbar gris de Windows, el highlight azul de la selección, el `confirm()`
