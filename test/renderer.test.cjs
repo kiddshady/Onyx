@@ -902,6 +902,13 @@ app.whenReady().then(async () => {
   document.querySelectorAll('.ox-scroll, .ox-main, [class*="scroll"]').forEach((s) => { s.scrollTop = 0; s.scrollLeft = 0; });
   return out;
 })(document)`;
+  // Sin foco en la ventana, :focus-visible no se aplica y todo anillo mide
+  // cero: la auditoría pasaría sin haber medido nada. Hoy lo trae el
+  // win.focus() de la prueba del puntero; esto no depende de que siga ahí.
+  win.focus();
+  win.webContents.focus();
+  await sleep(150);
+  ok('la ventana tiene el foco (si no, no hay anillos que medir)', await js('document.hasFocus()'));
   for (const v of ['inicio', 'items', 'piezas', 'ajustes']) {
     await click(`[data-view="${v}"]`);
     await sleep(700);
