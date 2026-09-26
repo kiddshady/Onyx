@@ -758,6 +758,31 @@ app.whenReady().then(async () => {
   ok('y los dos planos son distintos entre sí',
     fondos.vista && fondos.card && fondos.vista.plano !== fondos.card.plano, JSON.stringify(fondos));
 
+  /* ── 8-decies. Un ícono dentro de un dato chico va en el renglón ───────────
+     `.ox-meta` y `.ox-label` son texto en línea y todo svg es display:block:
+     el ícono se iba solo a un renglón de arriba (salió de Pharos). Se arman
+     los dos casos y se mide que ícono y texto compartan renglón. Sin la regla
+     de base.css da 13.5px de desfase y 27px de alto. */
+  console.log('\n8-decies. Un ícono dentro de un dato chico va en el renglón');
+  const renglon = await js(`(async () => {
+    const { Icons } = await import('./js/icons.js');
+    const caja = document.createElement('div');
+    caja.innerHTML = '<span class="ox-meta">' + Icons.svg('clock', 'ox-icon--sm') + ' hace 2 h</span>'
+      + '<div><span class="ox-label">' + Icons.svg('settings', 'ox-icon--sm') + ' Ajustes</span></div>';
+    document.getElementById('view').prepend(caja);
+    const medir = (el) => {
+      const i = el.querySelector('svg').getBoundingClientRect();
+      const r = document.createRange(); r.selectNodeContents(el.lastChild);
+      const t = r.getBoundingClientRect();
+      return { dy: +Math.abs((i.top + i.bottom) / 2 - (t.top + t.bottom) / 2).toFixed(1), alto: Math.round(el.getBoundingClientRect().height) };
+    };
+    const out = { meta: medir(caja.querySelector('.ox-meta')), label: medir(caja.querySelector('.ox-label')) };
+    caja.remove();
+    return out;
+  })()`);
+  ok('en .ox-meta el ícono va al lado del texto', renglon.meta.dy <= 2 && renglon.meta.alto < 20, JSON.stringify(renglon));
+  ok('y en .ox-label también', renglon.label.dy <= 2 && renglon.label.alto < 22, JSON.stringify(renglon));
+
   console.log('\n8-nonies. Las acciones de fila no se quedan pegadas al clic');
   // La fila es un botón con tabindex: un clic de mouse la deja enfocada. Con
   // :focus-within, las .ox-rowactions quedaban a la vista en la última fila

@@ -153,6 +153,12 @@ banda no coma el primer ni el último ítem.
 
 `.ox-icon` con `--sm` / `--lg` / `--xl` / `--fill`.
 
+**Un ícono adentro de `.ox-meta` o `.ox-label` va en el renglón.** Los dos son
+texto en línea y todo `svg` es `display: block`, así que el ícono se iba solo a
+un renglón de arriba (salió de Pharos: «de la red», «Aplicar descuento» tenían
+el ícono flotando encima del texto). Con `:has(> .ox-icon)` pasan a
+`inline-flex` solo los que llevan ícono. El de humo lo mide (8-decies).
+
 ---
 
 ## Shell
