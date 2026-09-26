@@ -824,9 +824,10 @@ app.whenReady().then(async () => {
      (una card, el carril del segmentado), con Tab se ve cortado: pasó en los
      controles de ventana, el primer ítem del rail, el segmentado y las filas
      de una tabla de borde a borde (Apex, sep 2026). Cada elemento se enfoca
-     como con teclado y se mide su anillo real, así los que van hacia adentro
-     cuentan cero. Las filas de tabla se prueban como si tuvieran tabindex,
-     porque las apps se lo ponen. */
+     como con teclado y se mide su anillo real (solo las sombras duras: una
+     difusa es elevación, no anillo), así los que van hacia adentro cuentan
+     cero. Las filas de tabla se prueban como si tuvieran tabindex, porque las
+     apps se lo ponen. */
   console.log('\n9-bis. Ningún anillo de foco se corta');
   const AUDITAR_ANILLOS = `((scope) => {
   if (!document.getElementById('aud-notr')) document.head.insertAdjacentHTML('beforeend', '<style id="aud-notr">*,*::before{transition:none!important}</style>');
@@ -840,7 +841,8 @@ app.whenReady().then(async () => {
       if (part.includes('inset') || part.trim() === 'none') continue;
       const nums = part.replace(/rgba?\\([^)]*\\)|oklch\\([^)]*\\)/g, '').match(/-?[\\d.]+px/g) || [];
       const [x = 0, y = 0, blur = 0, spread = 0] = nums.map(parseFloat);
-      m = Math.max(m, spread + blur + Math.max(Math.abs(x), Math.abs(y)));
+      if (blur > 0) continue;   // una sombra difusa (elevación, brillo) no es el anillo
+      m = Math.max(m, spread + Math.max(Math.abs(x), Math.abs(y)));
     }
     if (s.outlineStyle !== 'none' && !/rgba\\(0, 0, 0, 0\\)/.test(s.outlineColor)) m = Math.max(m, parseFloat(s.outlineWidth) + parseFloat(s.outlineOffset));
     el.blur();
