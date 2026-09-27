@@ -336,6 +336,8 @@ el SVG corrido más de medio píxel o desbordando.
 
 `.ox-list` + `.ox-listitem` con `__main` / `__title` / `__sub` / `__aside`.
 Las acciones van en `.ox-rowactions` (aparecen con el hover o con el foco de teclado; el clic no las deja pegadas).
+El anillo de foco de una `.ox-listitem` va hacia adentro: una lista suele ir de
+borde a borde de un `.ox-scroll`, y el de afuera se cortaba contra ese borde.
 
 `.ox-table` + `.ox-tr`; `.ox-td--num` alinea a la derecha con cifras tabulares,
 `.ox-td--tight` achica el padding. El `<th>` es sticky y por eso opaco: pinta
@@ -445,6 +447,17 @@ Entradas: `.ox-in-fade` · `.ox-in-rise` · `.ox-in-glide` · `.ox-in-pop`.
 Estado: `.ox-spinning` · `.ox-breathing` · `.ox-shaking` · `.ox-skeleton` ·
 `.ox-ticked`. `.ox-view` es la transición de vista (la aplica el router).
 `.ox-reveal` con `.is-open` para el alto.
+
+**El cambio de vista es un relevo.** Al navegar, el router pasa el contenido de
+la vista vieja a un calco (`.ox-main--saliente`: misma clase, sin ids, inerte y
+con su scroll) en la misma celda de `.ox-body`, y lo esfuma encima (160 ms,
+in-out) mientras la nueva entra con 90 ms de espera. Antes la vieja se iba de
+un cuadro al otro y la nueva arrancaba desde transparente: un cuadro vacío en
+cada navegación. Terminada la entrada, `#view` lleva `.is-settled` y no retiene
+la animación. `Router.refresh()` repinta en el lugar, sin relevo. El de humo
+mide la curva (9-ter). Consecuencia para las apps: durante esos 160 ms hay un
+segundo `.ox-main` en el DOM, así que buscá por id o dentro de `#view`, no con
+un `document.querySelector('.ox-main …')` suelto.
 
 ---
 

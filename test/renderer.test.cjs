@@ -941,7 +941,57 @@ app.whenReady().then(async () => {
     const cortes = await js(AUDITAR_ANILLOS);
     ok(`${v}: ningún anillo de foco se corta ni roza un canto`, cortes.length === 0, '\n      ' + cortes.join('\n      '));
   }
+  // Una lista que va de borde a borde de un .ox-scroll, en la columna de una
+  // vista con inspector: ahí la sangría la lleva __main y el scroll recorta
+  // justo en el borde de la fila (salió en Idiolect). La vitrina no lo arma,
+  // así que se arma acá y se audita solo.
+  const listaAlBorde = await js(`(() => {
+    const caja = document.createElement('div');
+    caja.className = 'ox-viewbody';
+    caja.innerHTML = '<div class="ox-viewbody__main"><div class="ox-scroll ox-grow" id="aud-lista"><div class="ox-list"><div class="ox-listitem" tabindex="0"><div class="ox-listitem__main"><span class="ox-listitem__title">Fila al borde</span></div></div></div></div></div><aside class="ox-inspector"></aside>';
+    document.getElementById('view').prepend(caja);
+    const out = ${AUDITAR_ANILLOS.replace('(document)', "(document.getElementById('aud-lista'))")};
+    caja.remove();
+    return out;
+  })()`);
+  ok('una .ox-listitem al borde de un .ox-scroll no corta su anillo', listaAlBorde.length === 0, '\n      ' + listaAlBorde.join('\n      '));
   await js(`document.getElementById('aud-notr')?.remove()`);
+
+  /* ── 9-ter. El relevo de vistas ────────────────────────────────────────────
+     Antes, la vista vieja se iba de un cuadro al otro y la nueva arrancaba
+     desde transparente: un cuadro vacío en cada navegación. Ahora la vieja se
+     esfuma en un calco, en la misma celda, mientras la nueva entra. Se
+     muestrea cada 40 ms y se mide la curva, no se mira. */
+  console.log('\n9-ter. El relevo de vistas');
+  await click('[data-view="ajustes"]');
+  await sleep(700);
+  const relevoVistas = await js(`(async () => {
+    const view = document.getElementById('view');
+    const rv = view.getBoundingClientRect();
+    document.querySelector('.ox-navitem[data-view="inicio"]').click();
+    const op = (el) => el?.isConnected ? Math.round(+getComputedStyle(el).opacity * 100) : null;
+    const calco = document.querySelector('.ox-main--saliente');
+    const filas = [];
+    for (let t = 0; t <= 400; t += 40) {
+      const rc = calco?.getBoundingClientRect();
+      filas.push({ t, viejo: op(calco), nuevo: op(view),
+        mismoLugar: !rc || !calco.isConnected || (rc.left === rv.left && rc.top === rv.top && rc.width === rv.width && rc.height === rv.height),
+        views: document.querySelectorAll('#view').length });
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    await new Promise((r) => setTimeout(r, 500));
+    return { filas, hayCalco: !!calco, settled: view.classList.contains('is-settled'),
+      animaciones: view.getAnimations().length, calcos: document.querySelectorAll('.ox-main--saliente').length };
+  })()`);
+  const sv = relevoVistas.filas.map((f) => `${f.t}:${f.viejo ?? '-'}/${f.nuevo}`).join(' ');
+  ok('al navegar, la vista vieja queda en un calco', relevoVistas.hayCalco, JSON.stringify(relevoVistas));
+  ok('que se esfuma de a poco (no se va de un cuadro al otro)', relevoVistas.filas.some((f) => f.viejo > 5 && f.viejo < 95), sv);
+  ok('la nueva espera su turno: arranca invisible', relevoVistas.filas[0].nuevo <= 5, sv);
+  ok('cuando la nueva ya se ve, la vieja va por menos de la mitad', relevoVistas.filas.every((f) => !(f.nuevo > 50 && f.viejo > 50)), sv);
+  ok('las dos en la misma celda, sin salto', relevoVistas.filas.every((f) => f.mismoLugar), sv);
+  ok('un solo #view en todo el relevo', relevoVistas.filas.every((f) => f.views === 1), sv);
+  ok('el calco se va del DOM al terminar', relevoVistas.calcos === 0, JSON.stringify(relevoVistas));
+  ok('y la entrada de la nueva se apaga (sin opacidad retenida)', relevoVistas.settled && relevoVistas.animaciones === 0, JSON.stringify(relevoVistas));
 
   // El test no puede dejar basura en los datos.
   if (id) await js(`window.onyx.col('items').remove(${JSON.stringify(id)})`);
