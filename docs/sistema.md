@@ -459,6 +459,17 @@ mide la curva (9-ter). Consecuencia para las apps: durante esos 160 ms hay un
 segundo `.ox-main` en el DOM, así que buscá por id o dentro de `#view`, no con
 un `document.querySelector('.ox-main …')` suelto.
 
+Dos cosas más del calco, que salieron de Chem Engine:
+
+- **Mover un nodo le reinicia las animaciones CSS.** El router da por terminadas
+  las entradas de lo que pasa al calco (las infinitas, como un spinner, siguen);
+  sin eso, un bloque con fundido propio caía a 0 y volvía a entrar mientras la
+  vista se esfumaba.
+- **La limpieza de la vista (`onLeave`) corre ANTES del relevo.** Lo que se
+  suelte ahí se ve suelto durante esos 160 ms. Un canvas WebGL al que se le
+  fuerza la pérdida del contexto se pinta **blanco**: soltalo con un
+  `setTimeout` más largo que la salida, no en el acto.
+
 ---
 
 ## Router

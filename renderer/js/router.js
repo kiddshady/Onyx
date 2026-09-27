@@ -85,6 +85,16 @@ function retirarVista() {
   host.after(calco);
   for (const [el, top, left] of scrolls) { el.scrollTop = top; el.scrollLeft = left; }
 
+  // Mover un nodo en el DOM le REINICIA las animaciones CSS. Lo que tenía su
+  // propia entrada (un bloque que se funde, una lista escalonada) volvía a
+  // entrar desde cero adentro del calco que se está yendo: caía a opacidad 0
+  // en el primer cuadro y reaparecía mientras la vista se esfumaba. Medido en
+  // Chem Engine: 0 → 38 → 53 → 75 % con el calco bajando. Se dan por
+  // terminadas; lo que gira para siempre (un spinner) sigue girando.
+  for (const a of calco.getAnimations({ subtree: true })) {
+    if (a.effect?.getTiming().iterations !== Infinity) a.finish();
+  }
+
   exit(calco, { fallback: 260 });
   return calco;
 }

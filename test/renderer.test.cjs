@@ -993,6 +993,32 @@ app.whenReady().then(async () => {
   ok('el calco se va del DOM al terminar', relevoVistas.calcos === 0, JSON.stringify(relevoVistas));
   ok('y la entrada de la nueva se apaga (sin opacidad retenida)', relevoVistas.settled && relevoVistas.animaciones === 0, JSON.stringify(relevoVistas));
 
+  /* Lo que la vista vieja tenía con entrada PROPIA no vuelve a entrar en el
+     calco. Mover un nodo le reinicia las animaciones CSS, y un bloque que ya
+     estaba quieto caía a 0 en el primer cuadro y reaparecía mientras la vista
+     se esfumaba (salió en Chem Engine, con la ficha de identidad). Se planta
+     un bloque con fundido propio, se lo deja terminar, y se navega. */
+  await click('[data-view="ajustes"]');
+  await sleep(700);
+  const propia = await js(`(async () => {
+    const b = document.createElement('div');
+    b.textContent = 'bloque con entrada propia';
+    b.style.animation = 'ox-fade-in 280ms both';
+    document.querySelector('#view .ox-scroll').prepend(b);
+    await new Promise((r) => setTimeout(r, 450));
+    document.querySelector('.ox-navitem[data-view="inicio"]').click();
+    const calco = document.querySelector('.ox-main--saliente');
+    const filas = [];
+    for (let t = 0; t <= 120; t += 20) {
+      filas.push({ t, calco: Math.round(+getComputedStyle(calco).opacity * 100), bloque: Math.round(+getComputedStyle(b).opacity * 100) });
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await new Promise((r) => setTimeout(r, 400));
+    return filas;
+  })()`);
+  ok('un bloque con entrada propia no vuelve a entrar adentro del calco',
+    propia.every((f) => f.bloque >= 99), propia.map((f) => `${f.t}:${f.calco}/${f.bloque}`).join(' '));
+
   // El test no puede dejar basura en los datos.
   if (id) await js(`window.onyx.col('items').remove(${JSON.stringify(id)})`);
   await js(`window.onyx.settings.save({ densidad:'comoda' })`);
