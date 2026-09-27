@@ -10,7 +10,7 @@
 
 import { Icons } from './icons.js';
 import { Toast, Menu, Modal } from './overlays.js';
-import { bindSwitcher, bindStepper } from './motion.js';
+import { bindSwitcher, bindStepper, swap } from './motion.js';
 import { mark, status, copy, colorToken, path } from './ui.js';
 
 /* ── Las tres perillas ───────────────────────────────────────────────────────
@@ -245,6 +245,19 @@ export function designHTML() {
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-confirm">Confirmación destructiva</button>
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-toast">Toast</button>
           <button class="ox-btn ox-btn--secondary ox-flashable" id="demo-toast-err">Toast de error</button>
+        </div>`)}
+
+      ${section('Reescribir un bloque', 'Un <span class="ox-mono">innerHTML</span> a secas es un corte: lo viejo se va en el mismo cuadro en que llega lo nuevo. <span class="ox-mono">swap(el, html, { relevo })</span> distingue los casos: lo que <b>aparece</b> se funde, lo que <b>se va</b> termina de irse, un estado que <b>reemplaza</b> a otro hace relevo en el mismo lugar, y un cambio de <b>valores</b> se escribe en el lugar sin volver a animar. Tocá los estados en cualquier orden, rápido también.', `
+        <div class="ox-row" style="gap:8px;margin-bottom:12px;flex-wrap:wrap" id="demo-swap-btns">
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" data-swap="pista">Pista</button>
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" data-swap="cargando">Cargando</button>
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" data-swap="resultado">Resultado</button>
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" data-swap="vacio">Vaciar</button>
+        </div>
+        <div class="ox-card" style="max-width:420px">
+          <div class="ox-card__body">
+            <div id="demo-swap" style="display:flex;align-items:center;gap:10px;min-height:40px"></div>
+          </div>
         </div>`)}
 
       ${section('Métricas y medidores', '', `
@@ -520,6 +533,21 @@ export function wireDesign(rootEl) {
 
   rootEl.querySelector('#demo-toast-err')?.addEventListener('click', () =>
     Toast.error('No se pudo guardar', 'EPERM: el archivo está tomado por otro proceso. Se reintentó 5 veces.'));
+
+  /* swap(): los cuatro estados del bloque de demo. Vaciar no lleva relevo —se
+     va—; los otros tres se reemplazan entre sí. */
+  const SWAP = {
+    pista: '<span class="ox-meta">Escribí algo para empezar.</span>',
+    cargando: `${Icons.spinner()}<span class="ox-meta">Buscando…</span>`,
+    resultado: `${Icons.svg('check')}<span>Tres coincidencias</span><span class="ox-chip">n-0042</span>`,
+    vacio: '',
+  };
+  const swapBox = rootEl.querySelector('#demo-swap');
+  swap(swapBox, SWAP.pista);
+  rootEl.querySelector('#demo-swap-btns')?.addEventListener('click', (e) => {
+    const k = e.target.closest('[data-swap]')?.dataset.swap;
+    if (k) swap(swapBox, SWAP[k], { relevo: k !== 'vacio' });
+  });
 
   /* Íconos: click = copiar la etiqueta lista para pegar. */
   rootEl.querySelector('#icon-grid')?.addEventListener('click', (e) => {

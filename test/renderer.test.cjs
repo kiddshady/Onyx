@@ -826,6 +826,109 @@ app.whenReady().then(async () => {
   await js(`document.activeElement?.blur(); document.getElementById('test-fila')?.removeAttribute('id'); true`);
   await sleep(300);
 
+  /* ── 8-undecies. swap(): reescribir un bloque sin cortes ──────────────────
+     Un innerHTML a secas se lleva lo viejo en el mismo cuadro en que llega lo
+     nuevo. Se mide la demo de la vitrina en los cuatro casos, muestreando la
+     opacidad cada 20 ms: la curva, no una foto. Y el mismo mecanismo en la
+     app demo: el contexto de la titlebar, que entraba y salía de golpe. */
+  console.log('\n8-undecies. swap(): reescribir un bloque sin cortes');
+  const swapA = (k) => js(`document.querySelector('#demo-swap-btns [data-swap="${k}"]').click()`);
+  await js(`document.getElementById('demo-swap').scrollIntoView({ block: 'center' })`);
+  await swapA('pista');
+  await sleep(400);
+
+  const relevo = await js(`(async () => {
+    const box = document.getElementById('demo-swap');
+    const viejo = box.querySelector(':scope > .ox-meta');
+    const antes = viejo.getBoundingClientRect();
+    document.querySelector('#demo-swap-btns [data-swap="cargando"]').click();
+    const calco = box.querySelector(':scope > .ox-swap-out--over');
+    const nuevo = box.querySelector(':scope > .ox-swap-in');
+    const rb = box.getBoundingClientRect();
+    const filas = [];
+    for (let t = 0; t <= 240; t += 20) {
+      const rc = calco?.isConnected ? calco.getBoundingClientRect() : null;
+      const rv = viejo.isConnected ? viejo.getBoundingClientRect() : null;
+      filas.push({ t,
+        viejo: calco?.isConnected ? Math.round(+getComputedStyle(calco).opacity * 100) : null,
+        nuevo: nuevo ? Math.round(+getComputedStyle(nuevo).opacity * 100) : null,
+        mismoLugar: !rc || (Math.abs(rc.left - rb.left) < 0.5 && Math.abs(rc.top - rb.top) < 0.5),
+        quieto: !rv || (Math.abs(rv.left - antes.left) < 0.5 && Math.abs(rv.top - antes.top) < 0.5) });
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    const finitas = [...box.querySelectorAll('*')].flatMap((e) => e.getAnimations())
+      .filter((a) => a.effect.getTiming().iterations !== Infinity).length;
+    return { hayCalco: !!calco, filas, calcos: box.querySelectorAll('.ox-swap-out').length, finitas };
+  })()`);
+  const sr = relevo.filas.map((f) => `${f.t}:${f.viejo ?? '-'}/${f.nuevo}`).join(' ');
+  ok('un estado por otro: lo viejo queda en un calco encima', relevo.hayCalco, JSON.stringify(relevo));
+  ok('que se esfuma de a poco', relevo.filas.some((f) => f.viejo > 5 && f.viejo < 95), sr);
+  ok('lo nuevo espera su turno: arranca invisible', relevo.filas[0].nuevo <= 5, sr);
+  ok('nunca los dos a más de la mitad', relevo.filas.every((f) => !(f.viejo > 50 && f.nuevo > 50)), sr);
+  ok('el calco cae sobre el bloque, y lo viejo no se mueve mientras se va',
+    relevo.filas.every((f) => f.mismoLugar && f.quieto), JSON.stringify(relevo.filas.filter((f) => !f.mismoLugar || !f.quieto)));
+  ok('al terminar no queda calco ni entrada retenida', relevo.calcos === 0 && relevo.finitas === 0, JSON.stringify(relevo));
+
+  await swapA('vacio');
+  await sleep(400);
+  const aparece = await js(`(async () => {
+    const box = document.getElementById('demo-swap');
+    document.querySelector('#demo-swap-btns [data-swap="resultado"]').click();
+    const hijo = box.firstElementChild;
+    const op = () => Math.round(+getComputedStyle(hijo).opacity * 100);
+    const a0 = op();
+    await new Promise((r) => setTimeout(r, 400));
+    return { a0, a1: op() };
+  })()`);
+  ok('lo que aparece se funde (de 0 a 100)', aparece.a0 <= 10 && aparece.a1 === 100, JSON.stringify(aparece));
+
+  const igual = await js(`(async () => {
+    const box = document.getElementById('demo-swap');
+    const antes = box.firstElementChild;
+    document.querySelector('#demo-swap-btns [data-swap="resultado"]').click();
+    await new Promise((r) => setTimeout(r, 60));
+    return antes.isConnected && box.firstElementChild === antes;
+  })()`);
+  ok('con el mismo HTML no reemplaza ningún nodo', igual);
+
+  const seVa = await js(`(async () => {
+    const box = document.getElementById('demo-swap');
+    const hijo = box.firstElementChild;
+    document.querySelector('#demo-swap-btns [data-swap="vacio"]').click();
+    await new Promise((r) => setTimeout(r, 70));
+    const medio = hijo.isConnected ? Math.round(+getComputedStyle(hijo).opacity * 100) : null;
+    await new Promise((r) => setTimeout(r, 400));
+    return { medio, alFinal: box.children.length };
+  })()`);
+  ok('lo que se va termina de irse antes de salir del DOM',
+    seVa.medio > 5 && seVa.medio < 95 && seVa.alFinal === 0, JSON.stringify(seVa));
+  await swapA('pista');
+
+  // El contexto de la titlebar, en la app demo: entra al abrir un ítem y se
+  // esfuma al volver a la lista.
+  const contexto = await js(`(async () => {
+    const R = (await import('./js/router.js')).default;
+    const ctx = document.getElementById('titlebar-context');
+    const op = (el) => el?.isConnected ? Math.round(+getComputedStyle(el).opacity * 100) : null;
+    R.go('item', ${JSON.stringify(id)});
+    const entra = ctx.firstElementChild;
+    const e0 = op(entra);
+    await new Promise((r) => setTimeout(r, 500));
+    const e1 = op(entra);
+    R.go('items');
+    await new Promise((r) => setTimeout(r, 70));
+    const s0 = op(entra);
+    await new Promise((r) => setTimeout(r, 400));
+    return { e0, e1, s0, alFinal: ctx.children.length };
+  })()`);
+  ok('el contexto de la titlebar entra al abrir un ítem',
+    contexto.e0 !== null && contexto.e0 <= 10 && contexto.e1 === 100, JSON.stringify(contexto));
+  ok('y se esfuma al volver, en vez de irse de golpe',
+    contexto.s0 > 5 && contexto.s0 < 95 && contexto.alFinal === 0, JSON.stringify(contexto));
+  await click('[data-view="piezas"]');
+  await sleep(700);
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;
@@ -837,10 +940,15 @@ app.whenReady().then(async () => {
   ok('cero title= nativo', (await js(`document.querySelectorAll('[title]').length`)) === 0);
   const reglas = await js(`(() => { const r = [...document.styleSheets].flatMap(ss => { try { return [...ss.cssRules] } catch { return [] } })
       .map(x => x.selectorText).filter(Boolean).join(' ');
-    return { scrollbar: r.includes('::-webkit-scrollbar'), seleccion: r.includes('::selection'), focus: r.includes(':focus-visible') }; })()`);
+    return { scrollbar: r.includes('::-webkit-scrollbar'), seleccion: r.includes('::selection'), focus: r.includes(':focus-visible'),
+      // Lo que se estira (resize) pinta el agarrador de Chromium en la esquina
+      // salvo que haya uno propio.
+      estiran: [...document.querySelectorAll('*')].filter((e) => getComputedStyle(e).resize !== 'none').length,
+      agarrador: r.includes('::-webkit-resizer') }; })()`);
   ok('scrollbar propia', reglas.scrollbar);
   ok('::selection propia', reglas.seleccion);
   ok('focus ring propio (:focus-visible)', reglas.focus);
+  ok('agarrador de estirar propio (::-webkit-resizer)', reglas.estiran === 0 || reglas.agarrador, JSON.stringify(reglas));
 
   /* ── 9-bis. Ningún anillo de foco se corta ─────────────────────────────────
      El anillo de base.css sale 3.5px por fuera del elemento. Si el elemento se

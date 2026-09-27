@@ -135,6 +135,17 @@
 .ox-input.is-invalid,
 .ox-textarea.is-invalid { box-shadow: inset 0 0 0 1px var(--ox-danger-ring); }
 .ox-textarea { min-height: 88px; resize: vertical; line-height: var(--ox-lh); }
+/* El agarrador de estirar, dibujado. Con `resize` Chromium pinta el suyo en la
+   esquina —dos rayitas grises de sistema— y era lo único nativo que quedaba a
+   la vista en un campo. Dos trazos en diagonal con el color de los tokens, así
+   se re-tinta con el resto; la esquina sigue estirando igual. */
+.ox-textarea::-webkit-resizer {
+  background:
+    linear-gradient(135deg,
+      transparent 0 44%, var(--ox-text-4) 44% 54%,
+      transparent 54% 72%, var(--ox-text-4) 72% 82%, transparent 82%)
+    no-repeat right 2px bottom 2px / 8px 8px;
+}
 .ox-input--mono, .ox-textarea--mono { font-family: var(--ox-mono); font-size: 12px; }
 
 /* Campo con ícono adelante (búsqueda). */

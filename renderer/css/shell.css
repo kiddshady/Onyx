@@ -56,6 +56,9 @@
   color: var(--ox-text-3);
   pointer-events: none;
 }
+/* Está centrado por su propio ancho: en un relevo de swap(), el nombre viejo
+   se centra también, o saltaría hacia un costado mientras se esfuma. */
+.ox-titlebar__context > .ox-swap-out--over { justify-content: center; }
 
 /* Controles de ventana: propios, no los de Windows. El botón ocupa todo el
    alto (maximizada, tirar el mouse a la esquina tiene que acertar la cruz),

@@ -161,3 +161,29 @@
 .ox-main--saliente[data-state='closing'] { animation: ox-desvanecer 160ms var(--ox-ease-both) both; }
 /* Sin `from`: sale desde donde esté, aunque la agarre a mitad de su entrada. */
 @keyframes ox-desvanecer { to { opacity: 0 } }
+
+/* ── swap() ──────────────────────────────────────────────────────────────────
+   Las clases de `swap()` (motion.js): reescribir un bloque sin cortes. La
+   entrada va con especificidad cero —si el bloque trae la suya, manda la
+   suya— y el apagado se declara ANTES que la salida. */
+:where(.ox-swap-in) { animation: ox-fade-in var(--ox-t-2) var(--ox-ease-soft) both; }
+.ox-swap-in.is-after { animation-delay: 70ms; }
+.ox-swap-in.is-settled { animation: none; }
+.ox-swap-host { position: relative; }
+.ox-swap-out { pointer-events: none; }
+/* El calco del relevo copia el acomodo del contenedor —flex, centrado,
+   separación, relleno— para que lo viejo no se mueva mientras se esfuma. */
+.ox-swap-out--over {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: inherit;
+  flex-direction: inherit;
+  flex-wrap: inherit;
+  align-items: inherit;
+  justify-content: inherit;
+  gap: inherit;
+  padding: inherit;
+}
+/* In-out y no ease-in: hay alguien esperando detrás. */
+.ox-swap-out[data-state='closing'] { animation: ox-desvanecer 160ms var(--ox-ease-both) both; }

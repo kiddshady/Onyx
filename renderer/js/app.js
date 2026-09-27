@@ -11,7 +11,7 @@
 import { Icons } from './icons.js';
 import { Tooltip, Toast, Menu, Modal } from './overlays.js';
 import Router from './router.js';
-import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher } from './motion.js';
+import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher, swap } from './motion.js';
 import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken, path } from './ui.js';
 import { fmtBytes, relTime, fmtDate, plural, monogram } from './format.js';
 import { designHTML, wireDesign } from './design-view.js';
@@ -246,7 +246,8 @@ function viewItem(id) {
   const seg = document.getElementById('state-seg');
   bindSwitcher(seg, async (value) => {
     await attempt(() => saveItem({ ...it, state: value }));
-    document.getElementById('kv-state').innerHTML = status(value);
+    // Un estado por otro: relevo, no un corte (ver swap() en motion.js).
+    swap(document.getElementById('kv-state'), status(value), { relevo: true });
   });
 }
 
@@ -489,12 +490,16 @@ function updateChrome() {
      entera ninguna ruta, y la cola —el nombre de la app y `data`— es lo único
      que dice de cuál se trata. El tooltip la sigue mostrando completa. */
   const dir = S.info?.dataDir || '';
-  document.getElementById('rail-foot').innerHTML =
-    dir ? `<div class="ox-meta" data-tip="${esc(dir)}">${path(dir)}</div>` : '';
+  // Con swap() y no innerHTML: esto corre en cada navegación, y con el mismo
+  // HTML swap() no toca nada en vez de reemplazar el nodo cada vez.
+  swap(document.getElementById('rail-foot'),
+    dir ? `<div class="ox-meta" data-tip="${esc(dir)}">${path(dir)}</div>` : '');
 
   const ctx = document.getElementById('titlebar-context');
   const it = Router.name === 'item' ? item(Router.param) : null;
-  ctx.innerHTML = it ? `${Icons.svg('file', 'ox-icon--sm')}<span>${esc(it.name)}</span>` : '';
+  /* Con swap(): aparece al abrir un ítem, se esfuma al salir y hace relevo si
+     cambia de nombre. Antes entraba y salía de golpe, en cada navegación. */
+  swap(ctx, it ? `${Icons.svg('file', 'ox-icon--sm')}<span>${esc(it.name)}</span>` : '', { relevo: true });
 }
 
 /* ══ Color de la ventana ═════════════════════════════════════════════════════
