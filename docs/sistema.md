@@ -469,6 +469,17 @@ Estado: `.ox-spinning` · `.ox-breathing` · `.ox-shaking` · `.ox-skeleton` ·
 `.ox-ticked`. `.ox-view` es la transición de vista (la aplica el router).
 `.ox-reveal` con `.is-open` para el alto.
 
+**Lo que se prende con `hidden` se pliega.** `.ox-plegable` (alto) y
+`.ox-plegable--ancho` (ancho, en una fila) hacen que `el.hidden = …` no sea un
+corte: se pliega hasta 0 mientras se desvanece y recién al final pasa a
+`display: none`, con `@starting-style`, `interpolate-size` y `display`
+`allow-discrete`. El JS no cambia. `.ox-reveal` sigue siendo para cuando
+manejás una clase y tenés un envoltorio. En una fila, declarale a la fila su
+`gap` en `--ox-plegable-gap` (la statusbar ya lo trae): si no, los de al lado
+saltan cuando el plegado pasa a `display: none`. Si lo de abajo reacciona al
+tamaño (un ResizeObserver que redibuja), que espere a que termine el pliegue.
+Lo muestra la vitrina en «Mostrar y esconder» y lo mide el humo (8-duodecies).
+
 **El cambio de vista es un fundido.** Al navegar, el router pasa el contenido
 de la vista vieja a un calco (`.ox-main--saliente`: misma clase, sin ids, inerte
 y con su scroll) en la misma celda de `.ox-body`, encima, y lo esfuma

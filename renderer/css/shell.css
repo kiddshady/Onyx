@@ -372,6 +372,7 @@
   display: flex;
   align-items: center;
   gap: var(--ox-4);
+  --ox-plegable-gap: var(--ox-4);   /* el mismo gap, para .ox-plegable--ancho */
   padding: 0 var(--ox-4);
   background: var(--ox-s1);
   box-shadow: inset 0 1px 0 var(--ox-line);
@@ -386,6 +387,10 @@
   height: 100%;
   transition: var(--tr-color);
 }
+/* El ítem es flex, y una regla de clase le gana al `hidden` del navegador: sin
+   esto, un dato escondido con `el.hidden` seguía en la barra. En Quire, sin
+   documento abierto se leía «— — [impresora] —». */
+.ox-statusbar__item[hidden] { display: none; }
 .ox-statusbar__item:hover { color: var(--ox-text-2); }
 .ox-statusbar__item .ox-icon { width: 12px; height: 12px; }
 .ox-statusbar__value { color: var(--ox-text-2); font-variant-numeric: tabular-nums; }

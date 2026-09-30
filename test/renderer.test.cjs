@@ -929,6 +929,72 @@ app.whenReady().then(async () => {
   await click('[data-view="piezas"]');
   await sleep(700);
 
+  /* ── 8-duodecies. Lo que se prende con `hidden` se pliega ─────────────────
+     Con `display: none` a secas, algo que se prende con el.hidden aparece y
+     se va de un cuadro al otro y empuja de golpe a lo de al lado (salió de
+     Quire 0.9.8: una barra de tinta, un progreso, datos de la statusbar). Se
+     mide la demo de la vitrina en cada cuadro, al prender y al apagar: tiene
+     que haber medidas intermedias, al apagar tiene que seguir en pantalla
+     mientras se va, y en la fila los de al lado no pueden saltar al final. */
+  console.log('\n8-duodecies. Mostrar y esconder: .ox-plegable');
+  const pliegue = await js(`(async () => {
+    const cuadro = () => new Promise((ok) => requestAnimationFrame(ok));
+    const serie = async (el, disparar, medir) => {
+      disparar();
+      const out = []; const t0 = performance.now();
+      while (performance.now() - t0 < 320) {
+        const cs = getComputedStyle(el);
+        out.push({ t: Math.round(performance.now() - t0), med: medir(), op: Math.round(+cs.opacity * 100), display: cs.display });
+        await cuadro();
+      }
+      return out;
+    };
+    const resumen = (s) => {
+      const max = Math.max(...s.map((f) => f.med));
+      return { serie: s.map((f) => f.t + ':' + f.med + '/' + f.op).join(' '), max, fin: s.at(-1).med,
+        intermedias: s.filter((f) => f.med > 0 && f.med < max).length,
+        visibleAlIrse: s[0].display !== 'none' && s[0].op > 50 };
+    };
+    const alto = document.getElementById('demo-plegable');
+    const boton = document.getElementById('demo-plegar');
+    const h = () => Math.round(alto.getBoundingClientRect().height);
+    const entra = resumen(await serie(alto, () => boton.click(), h));
+    await new Promise((r) => setTimeout(r, 150));
+    const sale = resumen(await serie(alto, () => boton.click(), h));
+
+    const ancho = document.getElementById('demo-plegable-ancho');
+    const ultimo = document.querySelector('#demo-plegable-fila > :last-child');
+    const botonAncho = document.getElementById('demo-plegar-ancho');
+    const w = () => Math.round(ancho.getBoundingClientRect().width);
+    /* El último chip, en cada cuadro, junto con si el del medio ya pasó a
+       display:none. Lo que importa es el paso de ESE cuadro: a mitad del
+       pliegue el vecino se mueve rápido (hasta ~18 px por cuadro) y está bien;
+       un salto justo al desaparecer es el hueco del gap que no se descontó. */
+    const xs = [];
+    const saleAncho = resumen(await serie(ancho, () => botonAncho.click(), () => {
+      xs.push({ x: ultimo.getBoundingClientRect().left, fuera: getComputedStyle(ancho).display === 'none' });
+      return w();
+    }));
+    const k = xs.findIndex((f) => f.fuera);
+    const salto = k > 0 ? Math.abs(xs[k].x - xs[k - 1].x) : Infinity;
+    await new Promise((r) => setTimeout(r, 150));
+    const entraAncho = resumen(await serie(ancho, () => botonAncho.click(), w));
+    return { entra, sale, saleAncho, entraAncho, salto: Math.round(salto * 10) / 10, xs: xs.map((f) => Math.round(f.x) + (f.fuera ? '*' : '')).join(' ') };
+  })()`);
+  const plegado = (quien, r, alIrse) => {
+    ok(`${quien}: pasa por medidas intermedias`, r.intermedias >= 2, r.serie);
+    if (alIrse) ok(`${quien}: sigue en pantalla mientras se va`, r.visibleAlIrse, r.serie);
+  };
+  plegado('alto, al mostrar', pliegue.entra);
+  plegado('alto, al esconder', pliegue.sale, true);
+  ok('escondido no ocupa lugar', pliegue.sale.fin === 0, pliegue.sale.serie);
+  plegado('ancho, al esconder', pliegue.saleAncho, true);
+  plegado('ancho, al mostrar', pliegue.entraAncho);
+  ok('en la fila, los de al lado no saltan cuando el plegado se va', pliegue.salto <= 2, `salto en ese cuadro: ${pliegue.salto} px (${pliegue.xs})`);
+  const statEscondido = await js(`(() => { const el = document.getElementById('stat-saved');
+    el.hidden = true; const d = getComputedStyle(el).display; el.hidden = false; return d; })()`);
+  ok('un ítem de la statusbar con hidden se esconde de verdad', statEscondido === 'none', statEscondido);
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;

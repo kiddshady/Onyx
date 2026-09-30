@@ -260,6 +260,24 @@ export function designHTML() {
           </div>
         </div>`)}
 
+      ${section('Mostrar y esconder', 'Lo que se prende con <span class="ox-mono">el.hidden</span> no aparece de golpe: con <span class="ox-mono">.ox-plegable</span> el alto se pliega mientras se desvanece, y lo de abajo se corre de a poco en vez de saltar. <span class="ox-mono">.ox-plegable--ancho</span> hace lo mismo en una fila, con los de al lado. El JS no cambia: sigue siendo <span class="ox-mono">hidden</span>. Si manejás una clase y tenés un envoltorio, <span class="ox-mono">.ox-reveal</span>.', `
+        <div class="ox-row" style="gap:8px;margin-bottom:12px">
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" id="demo-plegar">Opciones avanzadas</button>
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" id="demo-plegar-ancho">Dato del medio</button>
+        </div>
+        <div class="ox-card" style="max-width:420px">
+          <div class="ox-card__body">
+            <div class="ox-plegable" id="demo-plegable" hidden>
+              <div class="ox-meta" style="padding-bottom:12px">Lo que estaba escondido. Todo lo de abajo se corre con él.</div>
+            </div>
+            <div class="ox-row" id="demo-plegable-fila" style="gap:8px;--ox-plegable-gap:8px">
+              <span class="ox-chip">primero</span>
+              <span class="ox-chip ox-plegable--ancho" id="demo-plegable-ancho">el del medio</span>
+              <span class="ox-chip">último</span>
+            </div>
+          </div>
+        </div>`)}
+
       ${section('Métricas y medidores', '', `
         <div class="ox-row" style="gap:40px;margin-bottom:20px;flex-wrap:wrap">
           <div class="ox-stat"><span class="ox-stat__value">42.3<span class="ox-stat__unit">k</span></span><span class="ox-stat__label">Registros</span></div>
@@ -548,6 +566,12 @@ export function wireDesign(rootEl) {
     const k = e.target.closest('[data-swap]')?.dataset.swap;
     if (k) swap(swapBox, SWAP[k], { relevo: k !== 'vacio' });
   });
+
+  /* Mostrar y esconder: el JS solo cambia `hidden`, el CSS pliega. */
+  const plegable = rootEl.querySelector('#demo-plegable');
+  rootEl.querySelector('#demo-plegar')?.addEventListener('click', () => { plegable.hidden = !plegable.hidden; });
+  const ancho = rootEl.querySelector('#demo-plegable-ancho');
+  rootEl.querySelector('#demo-plegar-ancho')?.addEventListener('click', () => { ancho.hidden = !ancho.hidden; });
 
   /* Íconos: click = copiar la etiqueta lista para pegar. */
   rootEl.querySelector('#icon-grid')?.addEventListener('click', (e) => {
