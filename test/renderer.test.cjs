@@ -1127,6 +1127,41 @@ app.whenReady().then(async () => {
   ok('un bloque con entrada propia no vuelve a entrar adentro del calco',
     propia.every((f) => f.bloque >= 99), propia.map((f) => `${f.t}:${f.calco}/${f.bloque}`).join(' '));
 
+  /* Tooltip entre vecinos: el pointerout del primero llega ANTES que el
+     pointerover del segundo y ya lo cerró, así que mirar si hay uno abierto no
+     alcanza para saber que venías de otro. Salió en Moji: pasar de un botón al
+     de al lado volvía a esperar los 420 ms enteros. Se mide cuándo aparece. */
+  const tips = await js(`(async () => {
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const [a, b] = document.querySelectorAll('.ox-statusbar [data-tip]');
+    const over = (el) => el.dispatchEvent(new PointerEvent('pointerover', { bubbles: true }));
+    const out = (el) => el.dispatchEvent(new PointerEvent('pointerout', { bubbles: true }));
+    const visible = (txt) => [...document.querySelectorAll('.ox-tooltip')]
+      .some((t) => !t.dataset.state && t.textContent.startsWith(txt));
+    const until = async (txt) => { const t0 = performance.now();
+      while (!visible(txt) && performance.now() - t0 < 1000) await wait(10);
+      return Math.round(performance.now() - t0); };
+    over(a);
+    const frio = await until(a.dataset.tip);
+    await wait(150);
+    out(a); over(b);
+    const vecino = await until(b.dataset.tip);
+    out(b);
+    await wait(700);
+    // Un ancla que se va del DOM durante la espera no deja un tooltip en la esquina.
+    const suelto = document.createElement('button');
+    suelto.dataset.tip = 'ancla que se fue';
+    document.body.append(suelto);
+    over(suelto); suelto.remove();
+    await wait(600);
+    const huerfano = visible('ancla que se fue');
+    window.dispatchEvent(new Event('blur'));
+    return { frio, vecino, huerfano };
+  })()`);
+  ok('el primer tooltip espera la demora larga', tips.frio >= 380 && tips.frio < 1000, JSON.stringify(tips));
+  ok('el del vecino entra con la espera corta', tips.vecino < 250, JSON.stringify(tips));
+  ok('si el ancla se fue durante la espera, no aparece', !tips.huerfano, JSON.stringify(tips));
+
   // El test no puede dejar basura en los datos.
   if (id) await js(`window.onyx.col('items').remove(${JSON.stringify(id)})`);
   await js(`window.onyx.settings.save({ densidad:'comoda' })`);
