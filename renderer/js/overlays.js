@@ -37,7 +37,7 @@ const Tooltip = (() => {
   let current = null;
   let anchor = null;
   let timer = null;
-  let left = 0;       // cuándo se fue el último por salir de su ancla
+  let left = -Infinity;  // cuándo se fue el último por salir de su ancla
 
   function hide(immediate = false) {
     clearTimeout(timer);
