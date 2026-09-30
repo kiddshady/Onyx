@@ -70,7 +70,7 @@ function retirarVista() {
   const cs = getComputedStyle(host);
   const calco = document.createElement(host.tagName);
   calco.className = host.className;
-  calco.classList.remove('ox-view', 'is-after', 'is-settled');
+  calco.classList.remove('ox-view', 'is-settled');
   calco.classList.add('ox-main--saliente');
   calco.setAttribute('aria-hidden', 'true');
   calco.inert = true;
@@ -121,15 +121,20 @@ export function go(name, param = null) {
   const saliente = retirarVista();
   route.view(param);
 
-  // La transición de vista se reinicia a mano: sin el reflow intermedio el
-  // navegador no vuelve a disparar la animación al re-agregar la clase. Si
-  // hay una vista yéndose, la nueva espera su turno (is-after); si no (el
-  // arranque), entra sin esperar.
-  if (host) {
-    host.classList.remove('ox-view', 'is-after', 'is-settled');
+  // Si hay una vista yéndose, la nueva no anima nada: ya está entera y quieta
+  // debajo del calco, que es opaco, y el relevo lo hace el calco al
+  // esfumarse. Antes la nueva esperaba 90 ms invisible y entraba corrida
+  // 10 px: la pantalla se destapaba hasta la mitad y volvía (con contenido
+  // claro, un parpadeo) y lo que las dos vistas tienen en el mismo lugar —el
+  // título, las barras— temblaba. Medido en Quire (0.9.5).
+  //
+  // Sin vista yéndose (el arranque) entra sobre el eje del flujo. La
+  // transición se reinicia a mano: sin el reflow intermedio el navegador no
+  // vuelve a disparar la animación al re-agregar la clase.
+  if (host) host.classList.remove('ox-view', 'is-settled');
+  if (host && !saliente) {
     void host.offsetWidth;
     host.classList.add('ox-view');
-    if (saliente) host.classList.add('is-after');
     // Terminada la entrada, se apaga con una clase: una animación con fill
     // `both` deja su último cuadro aplicado para siempre, y una opacidad
     // retenida vuelve a la vista frontera de backdrop para lo que tenga adentro.

@@ -1066,10 +1066,14 @@ app.whenReady().then(async () => {
   await js(`document.getElementById('aud-notr')?.remove()`);
 
   /* ── 9-ter. El relevo de vistas ────────────────────────────────────────────
-     Antes, la vista vieja se iba de un cuadro al otro y la nueva arrancaba
-     desde transparente: un cuadro vacío en cada navegación. Ahora la vieja se
-     esfuma en un calco, en la misma celda, mientras la nueva entra. Se
-     muestrea cada 40 ms y se mide la curva, no se mira. */
+     Primero la vista vieja se iba de un cuadro al otro y la nueva arrancaba
+     desde transparente: un cuadro vacío. Después la vieja pasó a un calco que
+     se esfumaba encima, pero la nueva esperaba 90 ms invisible y entraba
+     corrida 10 px: la pantalla bajaba a un tercio de tapada y volvía (en
+     Quire, con las hojas blancas de un PDF, un parpadeo) y lo que las dos
+     vistas comparten en el mismo lugar temblaba. Ahora es un fundido: la
+     nueva ya está entera y quieta DEBAJO del calco, que es opaco. Se muestrea
+     cada 40 ms y se mide cuánto está tapada la pantalla, no se mira. */
   console.log('\n9-ter. El relevo de vistas');
   await click('[data-view="ajustes"]');
   await sleep(700);
@@ -1079,27 +1083,37 @@ app.whenReady().then(async () => {
     document.querySelector('.ox-navitem[data-view="inicio"]').click();
     const op = (el) => el?.isConnected ? Math.round(+getComputedStyle(el).opacity * 100) : null;
     const calco = document.querySelector('.ox-main--saliente');
+    const cc = calco && getComputedStyle(calco);
+    // El fondo sale de un token OKLCH: se mide el alfa pintándolo, no parseándolo.
+    const alfa = (color) => { const c = document.createElement('canvas').getContext('2d');
+      c.fillStyle = color; c.fillRect(0, 0, 1, 1); return c.getImageData(0, 0, 1, 1).data[3]; };
+    const opaco = !!cc && alfa(cc.backgroundColor) === 255;
+    const encima = !!calco && +cc.zIndex > 0 && view.compareDocumentPosition(calco) === Node.DOCUMENT_POSITION_FOLLOWING;
     const filas = [];
     for (let t = 0; t <= 400; t += 40) {
       const rc = calco?.getBoundingClientRect();
-      filas.push({ t, viejo: op(calco), nuevo: op(view),
+      const viejo = op(calco); const nuevo = op(view);
+      filas.push({ t, viejo, nuevo,
+        tapado: Math.round(viejo == null ? nuevo : viejo + (100 - viejo) * nuevo / 100),
+        quieta: getComputedStyle(view).transform === 'none',
         mismoLugar: !rc || !calco.isConnected || (rc.left === rv.left && rc.top === rv.top && rc.width === rv.width && rc.height === rv.height),
         views: document.querySelectorAll('#view').length });
       await new Promise((r) => setTimeout(r, 40));
     }
     await new Promise((r) => setTimeout(r, 500));
-    return { filas, hayCalco: !!calco, settled: view.classList.contains('is-settled'),
+    return { filas, hayCalco: !!calco, opaco, encima,
       animaciones: view.getAnimations().length, calcos: document.querySelectorAll('.ox-main--saliente').length };
   })()`);
   const sv = relevoVistas.filas.map((f) => `${f.t}:${f.viejo ?? '-'}/${f.nuevo}`).join(' ');
   ok('al navegar, la vista vieja queda en un calco', relevoVistas.hayCalco, JSON.stringify(relevoVistas));
+  ok('el calco es opaco y va encima (tapa a la nueva mientras se va)', relevoVistas.opaco && relevoVistas.encima, JSON.stringify(relevoVistas));
   ok('que se esfuma de a poco (no se va de un cuadro al otro)', relevoVistas.filas.some((f) => f.viejo > 5 && f.viejo < 95), sv);
-  ok('la nueva espera su turno: arranca invisible', relevoVistas.filas[0].nuevo <= 5, sv);
-  ok('cuando la nueva ya se ve, la vieja va por menos de la mitad', relevoVistas.filas.every((f) => !(f.nuevo > 50 && f.viejo > 50)), sv);
+  ok('la pantalla no se destapa en ningún momento (sin parpadeo)', relevoVistas.filas.every((f) => f.tapado >= 97), sv);
+  ok('la nueva no se corre mientras entra (sin temblor)', relevoVistas.filas.every((f) => f.quieta), sv);
   ok('las dos en la misma celda, sin salto', relevoVistas.filas.every((f) => f.mismoLugar), sv);
   ok('un solo #view en todo el relevo', relevoVistas.filas.every((f) => f.views === 1), sv);
   ok('el calco se va del DOM al terminar', relevoVistas.calcos === 0, JSON.stringify(relevoVistas));
-  ok('y la entrada de la nueva se apaga (sin opacidad retenida)', relevoVistas.settled && relevoVistas.animaciones === 0, JSON.stringify(relevoVistas));
+  ok('y la nueva no retiene ninguna animación', relevoVistas.animaciones === 0, JSON.stringify(relevoVistas));
 
   /* Lo que la vista vieja tenía con entrada PROPIA no vuelve a entrar en el
      calco. Mover un nodo le reinicia las animaciones CSS, y un bloque que ya

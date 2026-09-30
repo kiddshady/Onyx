@@ -469,16 +469,26 @@ Estado: `.ox-spinning` · `.ox-breathing` · `.ox-shaking` · `.ox-skeleton` ·
 `.ox-ticked`. `.ox-view` es la transición de vista (la aplica el router).
 `.ox-reveal` con `.is-open` para el alto.
 
-**El cambio de vista es un relevo.** Al navegar, el router pasa el contenido de
-la vista vieja a un calco (`.ox-main--saliente`: misma clase, sin ids, inerte y
-con su scroll) en la misma celda de `.ox-body`, y lo esfuma encima (160 ms,
-in-out) mientras la nueva entra con 90 ms de espera. Antes la vieja se iba de
-un cuadro al otro y la nueva arrancaba desde transparente: un cuadro vacío en
-cada navegación. Terminada la entrada, `#view` lleva `.is-settled` y no retiene
-la animación. `Router.refresh()` repinta en el lugar, sin relevo. El de humo
-mide la curva (9-ter). Consecuencia para las apps: durante esos 160 ms hay un
-segundo `.ox-main` en el DOM, así que buscá por id o dentro de `#view`, no con
-un `document.querySelector('.ox-main …')` suelto.
+**El cambio de vista es un fundido.** Al navegar, el router pasa el contenido
+de la vista vieja a un calco (`.ox-main--saliente`: misma clase, sin ids, inerte
+y con su scroll) en la misma celda de `.ox-body`, encima, y lo esfuma
+(`--ox-t-2`, in-out). La nueva no anima nada: ya está entera y quieta debajo, y
+como el calco es opaco (el fondo de `.ox-main`) la pantalla está tapada en todo
+momento. `.ox-view` (el glide) queda para el arranque, cuando no hay nada que
+relevar. `Router.refresh()` repinta en el lugar, sin fundido. El de humo mide
+cuánto está tapada la pantalla cada 40 ms (9-ter).
+
+Hubo dos versiones antes. En la primera la vieja se iba de un cuadro al otro y
+la nueva arrancaba desde transparente: un cuadro vacío. En la segunda la nueva
+esperaba 90 ms invisible y entraba con el glide —la receta de `swap()`, que es
+para bloques chicos sobre el mismo fondo—. Con vistas enteras la pantalla bajaba
+a un tercio de tapada y volvía: en Quire, con las hojas blancas de un PDF, el
+brillo medido iba 207 → 36 → 50, más oscuro que las dos vistas, y el título y
+las barras que las dos tienen en el mismo lugar se veían temblar al correrse.
+
+Consecuencia para las apps: durante el fundido hay un segundo `.ox-main` en el
+DOM, así que buscá por id o dentro de `#view`, no con un
+`document.querySelector('.ox-main …')` suelto.
 
 Dos cosas más del calco, que salieron de Chem Engine:
 
