@@ -428,6 +428,8 @@ sus campos después de que cierre. Atrapa el foco y cierra con Escape.
 ```js
 exit(el, { fallback: 300 })    // saca del DOM DESPUÉS de la animación de salida
 swap(el, html, { relevo, fundido }) // reescribe un bloque sin cortes (ver abajo)
+calcar(host)                   // la vista que se va: calco opaco que se esfuma (lo usa el router)
+repintar(root, poner)          // repinta la misma vista con fundido y sin perder el lugar (lo usa paint)
 raf2(fn)                       // dos frames: los estilos iniciales ya se aplicaron
 stagger(container)             // escalona los hijos con --i
 initClickFlash(root)
@@ -463,8 +465,12 @@ llega lo nuevo; `swap()` distingue cuatro casos:
 En el relevo y en el fundido el calco conserva la caja que tenía lo viejo
 (ancho, alto y dónde caía), no la del contenedor ya con lo nuevo: con
 `inset: 0`, una frase que se iba dentro de una caja más angosta se partía en
-dos renglones. Los textos sueltos se envuelven en un `<span>` para que también
-entren animados. Las dos cosas vienen de Pharos 0.4.1.
+dos renglones. La caja se mide **con decimales** (`getBoundingClientRect`, no
+`clientWidth`, que redondea: a una frase de 105,06 px le daba 105 y se partía
+igual), y el calco copia el acomodo del contenedor, sea flex o **grilla** (sus
+columnas también: sin ellas, una grilla de 7 caía a una columna durante el
+fundido). Los textos sueltos se envuelven en un `<span>` para que también
+entren —y se vayan— animados. Viene de Pharos 0.4.1 y de Finway.
 
 Con el mismo HTML de la última vez no hace nada, así que se puede llamar en cada
 refresco. Si lo de antes todavía estaba entrando, lo nuevo sigue desde el mismo
@@ -498,8 +504,36 @@ y con su scroll) en la misma celda de `.ox-body`, encima, y lo esfuma
 (`--ox-t-2`, in-out). La nueva no anima nada: ya está entera y quieta debajo, y
 como el calco es opaco (el fondo de `.ox-main`) la pantalla está tapada en todo
 momento. `.ox-view` (el glide) queda para el arranque, cuando no hay nada que
-relevar. `Router.refresh()` repinta en el lugar, sin fundido. El de humo mide
-cuánto está tapada la pantalla cada 40 ms (9-ter).
+relevar. El de humo mide cuánto está tapada la pantalla cada 40 ms (9-ter).
+
+**Repintar la misma vista también es un fundido, y no pierde el lugar.**
+`Router.refresh()` (después de guardar, duplicar, borrar) o una vista que se
+vuelve a pintar con el dato nuevo pasan por `paint()`, y `paint()` repinta con
+`repintar()` (motion.js): el mismo calco que al navegar, y lo nuevo **asentado**
+debajo. Antes era un `innerHTML` en seco y se veían cuatro cosas en todas las
+apps (la auditoría de Finway y Apex de octubre de 2026):
+
+- lo viejo se iba en el mismo cuadro en que llegaba lo nuevo;
+- todo lo que tiene entrada propia volvía a entrar —las filas escalonadas, el
+  vacío que sube, la línea de un gráfico que se dibuja— y ahora se da por
+  terminado (lo infinito, como un spinner, sigue; las transiciones también);
+- `countTo()` volvía a contar desde 0, y ahora escribe el valor (si cambió, el
+  fundido lo muestra);
+- el lugar se perdía. Ahora se saca una foto antes de pintar (el `remontar()`
+  de Apex): los revelados abiertos y las cápsulas se devuelven apenas se
+  pinta, para que la vista los vea al cablearse, y el scroll y el foco cuando
+  terminó de cablearse. Todo se reconoce por **id**: un `.ox-reveal` o un
+  segmentado sin id no se recuerda; el scroll va por orden de los `.ox-scroll`.
+
+Lo nuevo se asienta dos veces: al pintar, y al terminar la tarea con lo que la
+vista haya arrancado al cablearse. Lo que una vista arranque después de un
+`await` ya no cuenta como repintado y entra normal. Si la vista se calcó hace
+menos de 60 ms (navegó y pintó «cargando» y enseguida el dato), lo nuevo va
+directo debajo de ese calco, sin otro en el medio. Lo mide el humo (9-quater).
+
+De paso: la cápsula de un segmentado y el subrayado de los tabs **nacen en su
+lugar** (`colocar()`, de Apex). Antes la primera medida llegaba en `raf2` y la
+cápsula nacía en ancho 0 contra la izquierda y crecía, en cada vista montada.
 
 Hubo dos versiones antes. En la primera la vieja se iba de un cuadro al otro y
 la nueva arrancaba desde transparente: un cuadro vacío. En la segunda la nueva
@@ -535,7 +569,7 @@ Router.define({
 }, document.getElementById('view'));
 
 Router.go('item', 'n-0003');
-Router.refresh();                 // remonta la actual
+Router.refresh();                 // remonta la actual: fundido, sin perder el lugar
 Router.onLeave(store.onEvent(f)); // limpieza de la vista que se está montando
 Router.onChange((a, desde) => {});
 Router.current / .name / .param
@@ -550,7 +584,7 @@ degrada sola.
 ## Helpers de vista
 
 ```js
-paint(html)                        // innerHTML + monta íconos + cablea fades
+paint(html)                        // pinta + monta íconos + cablea fades; repintar la misma vista es un fundido
 head({ title, sub, crumbs, actions, linea })
 empty({ icon, title, text, actions })
 esc(str)                           // TODO dato de afuera pasa por acá

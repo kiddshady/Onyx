@@ -874,13 +874,17 @@ app.whenReady().then(async () => {
      contenedor ya con lo nuevo: una frase alineada a la derecha que pasaba a
      una más corta se esfumaba partida en dos renglones (Pharos 0.4.0, el
      descuento de la ficha). Y un texto suelto que llega en un relevo tiene
-     que entrar animado, no aparecer entero debajo de lo que se va. */
+     que entrar animado, no aparecer entero debajo de lo que se va.
+     El ancho de la frase es fraccionario a propósito (el letter-spacing): la
+     primera versión del arreglo medía con clientWidth, que redondea, y al
+     calco le faltaba una fracción de píxel para que la frase entrara —se
+     partía igual («Cargar / movimiento» en Finway)—. */
   const cajaVieja = await js(`(async () => {
     const { swap } = await import('./js/motion.js');
     const espera = (ms) => new Promise((r) => setTimeout(r, ms));
     const host = document.createElement('div');
     host.style.cssText = 'position:fixed;left:40px;top:40px;width:420px;display:flex;align-items:center;z-index:50';
-    host.innerHTML = '<div style="flex:1"></div><span class="ox-meta"></span>';
+    host.innerHTML = '<div style="flex:1"></div><span class="ox-meta" style="letter-spacing:.0137px"></span>';
     document.body.append(host);
     const frase = host.lastElementChild;
     swap(frase, 'Mostrando precios con <b>40%</b> menos');
@@ -905,6 +909,24 @@ app.whenReady().then(async () => {
   ok('ni se corre de donde estaba', cajaVieja.corrido < 0.5, JSON.stringify(cajaVieja));
   ok('un texto suelto que llega en un relevo entra animado (arranca invisible)',
     cajaVieja.nuevoAlEmpezar !== null && cajaVieja.nuevoAlEmpezar <= 0.05, JSON.stringify(cajaVieja));
+
+  // Y el que se va (algo → vacío): antes se borraba en el acto.
+  const seVaTexto = await js(`(async () => {
+    const { swap } = await import('./js/motion.js');
+    const el = document.createElement('span');
+    el.textContent = 'en categorías sin tope';
+    document.body.append(el);
+    swap(el, '');
+    const saliendo = el.querySelector(':scope > .ox-swap-out');
+    await new Promise((ok) => setTimeout(ok, 60));
+    const r = { saliendo: !!saliendo, aMitad: saliendo?.isConnected ? +getComputedStyle(saliendo).opacity : null };
+    await new Promise((ok) => setTimeout(ok, 400));
+    r.vacio = el.childNodes.length === 0;
+    el.remove();
+    return r;
+  })()`);
+  ok('un texto suelto que se va sale esfumándose, no de golpe',
+    seVaTexto.saliendo && seVaTexto.aMitad > 0 && seVaTexto.aMitad < 1 && seVaTexto.vacio, JSON.stringify(seVaTexto));
 
   /* Fundido: una tabla que gana columnas. Con el relevo la tabla entera
      pasaba por media luz (0,5 la vieja, 0,3 la nueva). Con fundido la nueva
@@ -1284,6 +1306,81 @@ app.whenReady().then(async () => {
   })()`);
   ok('un bloque con entrada propia no vuelve a entrar adentro del calco',
     propia.every((f) => f.bloque >= 99), propia.map((f) => `${f.t}:${f.calco}/${f.bloque}`).join(' '));
+
+  /* ── 9-quater. Repintar la misma vista ─────────────────────────────────────
+     Router.refresh() (después de guardar, duplicar, borrar) repintaba en seco
+     con innerHTML: lo viejo se iba en un cuadro, todo lo que tenía entrada
+     propia volvía a entrar, los contadores volvían a contar desde 0, el scroll
+     volvía arriba y las cápsulas nacían de cero. Lo encontró la auditoría de
+     Finway y Apex. Ahora es el mismo fundido que navegar, con lo nuevo
+     asentado debajo. Se mide sobre una vista de prueba, para no depender de
+     qué datos haya en disco. */
+  console.log('\n9-quater. Repintar la misma vista');
+  const repinte = await js(`(async () => {
+    const { Router } = await import('./js/router.js');
+    const { paint } = await import('./js/ui.js');
+    const { countTo, bindSwitcher } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cuadro = () => new Promise((r) => requestAnimationFrame(r));
+    Router.define({ 'prueba-repinte': { view: () => {
+      paint('<div class="ox-scroll ox-grow">'
+        + '<div class="ox-segmented" id="rp-seg"><button class="ox-segmented__opt is-active" data-value="a">Uno</button>'
+        + '<button class="ox-segmented__opt" data-value="b">Dos, más largo</button></div>'
+        + '<div class="ox-stat"><span class="ox-stat__value" id="rp-n">0</span></div>'
+        + '<div class="ox-empty" id="rp-vacio"><div class="ox-empty__title">Nada todavía</div></div>'
+        + '<div style="height:2400px"></div></div>');
+      bindSwitcher(document.getElementById('rp-seg'));
+      countTo(document.getElementById('rp-n'), 1284);
+    } } });
+    Router.go('prueba-repinte');
+    // La cápsula nace donde va: antes la primera medida llegaba en raf2 y
+    // nacía en ancho 0 contra la izquierda, y crecía.
+    const capAlNacer = parseFloat(getComputedStyle(document.getElementById('rp-seg'), '::before').width);
+    await espera(1200);
+    const view = document.getElementById('view');
+    view.querySelector('.ox-scroll').scrollTop = 500;
+    await espera(100);
+    const scrollAntes = view.querySelector('.ox-scroll').scrollTop;
+    Router.refresh();
+    const calco = document.querySelector('.ox-main--saliente');
+    const cc = calco && getComputedStyle(calco);
+    const alfa = (color) => { const c = document.createElement('canvas').getContext('2d');
+      c.fillStyle = color; c.fillRect(0, 0, 1, 1); return c.getImageData(0, 0, 1, 1).data[3]; };
+    const r = { capAlNacer, scrollAntes, hayCalco: !!calco,
+      opaco: !!cc && alfa(cc.backgroundColor) === 255, filas: [] };
+    await Promise.resolve();
+    const vacio = document.getElementById('rp-vacio');
+    const n = document.getElementById('rp-n');
+    const seg = document.getElementById('rp-seg');
+    const t0 = performance.now();
+    while (performance.now() - t0 < 360) {
+      const viejo = calco?.isConnected ? +getComputedStyle(calco).opacity * 100 : null;
+      const nuevo = +getComputedStyle(view).opacity * 100;
+      r.filas.push({ t: Math.round(performance.now() - t0),
+        tapado: Math.round(viejo == null ? nuevo : viejo + (100 - viejo) * nuevo / 100),
+        viejo: viejo == null ? null : Math.round(viejo),
+        vacio: Math.round(+getComputedStyle(vacio).opacity * 100),
+        n: n.textContent,
+        cap: Math.round(parseFloat(getComputedStyle(seg, '::before').width)),
+        scroll: Math.round(view.querySelector('.ox-scroll').scrollTop) });
+      await cuadro();
+    }
+    await espera(300);
+    r.calcos = document.querySelectorAll('.ox-main--saliente').length;
+    Router.go('inicio');
+    await espera(500);
+    return r;
+  })()`);
+  const sp = repinte.filas.map((f) => `${f.t}:${f.viejo ?? '-'}/${f.vacio}/${f.n}/${f.cap}/${f.scroll}`).join(' ');
+  ok('la cápsula de un segmentado nace en su lugar, no en ancho 0', repinte.capAlNacer > 0, JSON.stringify(repinte));
+  ok('repintar la misma vista deja lo de antes en un calco opaco', repinte.hayCalco && repinte.opaco, JSON.stringify(repinte));
+  ok('que se esfuma de a poco, sin destapar la pantalla',
+    repinte.filas.some((f) => f.viejo > 5 && f.viejo < 95) && repinte.filas.every((f) => f.tapado >= 97), sp);
+  ok('lo que tiene entrada propia no vuelve a entrar (el vacío queda entero)', repinte.filas.every((f) => f.vacio >= 99), sp);
+  ok('los contadores no vuelven a contar desde 0', repinte.filas.every((f) => f.n === '1284'), sp);
+  ok('la cápsula no vuelve a nacer en ancho 0', repinte.filas.every((f) => f.cap > 0), sp);
+  ok('y el scroll queda donde estaba', repinte.filas.every((f) => Math.abs(f.scroll - repinte.scrollAntes) <= 1), sp);
+  ok('el calco se va del DOM al terminar', repinte.calcos === 0, JSON.stringify(repinte.calcos));
 
   /* Tooltip entre vecinos: el pointerout del primero llega ANTES que el
      pointerover del segundo y ya lo cerró, así que mirar si hay uno abierto no

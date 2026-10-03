@@ -98,7 +98,15 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
   }
 
   if (antes && !despues) {
-    for (const n of viejos) {
+    for (let n of viejos) {
+      // Un texto suelto no puede salir animado: se borraba de golpe. Va en un
+      // <span> y sale como los demás.
+      if (n.nodeType === 3 && n.textContent.trim()) {
+        const s = document.createElement('span');
+        n.replaceWith(s);
+        s.append(n);
+        n = s;
+      }
       if (n.nodeType !== 1) { n.remove(); continue; }
       n.classList.remove('ox-swap-in', 'is-after');
       n.classList.add('ox-swap-out');
@@ -111,8 +119,7 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
   let calco = null;
   let caja = null;
   if (antes) {
-    const r = el.getBoundingClientRect();
-    caja = { left: r.left, top: r.top, w: el.clientWidth, h: el.clientHeight };
+    caja = cajaDe(el);
     calco = document.createElement('div');
     calco.className = `ox-swap-out ox-swap-out--over${fundido ? ' ox-swap-out--fundido' : ''}`;
     calco.inert = true;
@@ -148,15 +155,31 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
 
   // El calco, clavado en la caja vieja: medida ya con lo nuevo adentro.
   if (calco) {
-    const r = el.getBoundingClientRect();
+    const ahora = cajaDe(el);
     Object.assign(calco.style, {
       inset: 'auto',
-      left: `${caja.left - r.left - el.clientLeft}px`,
-      top: `${caja.top - r.top - el.clientTop}px`,
+      left: `${caja.left - ahora.left}px`,
+      top: `${caja.top - ahora.top}px`,
       width: `${caja.w}px`,
       height: `${caja.h}px`,
     });
   }
+}
+
+/* La caja de relleno de `el` (donde se apoya un hijo absoluto), con
+   decimales. clientWidth redondea: a una frase de 105,06 px le daba 105 y
+   no entraba —se partía en dos renglones igual—. */
+function cajaDe(el) {
+  const r = el.getBoundingClientRect();
+  const cs = getComputedStyle(el);
+  const bl = parseFloat(cs.borderLeftWidth) || 0;
+  const bt = parseFloat(cs.borderTopWidth) || 0;
+  return {
+    left: r.left + bl,
+    top: r.top + bt,
+    w: r.width - bl - (parseFloat(cs.borderRightWidth) || 0),
+    h: r.height - bt - (parseFloat(cs.borderBottomWidth) || 0),
+  };
 }
 
 /** El primer fondo opaco hacia arriba: lo que el calco de un fundido tiene que
@@ -274,6 +297,17 @@ export function syncTabs(tabs) {
   tabs.style.setProperty('--tab-w', `${active.offsetWidth}px`);
 }
 
+/* Pone un indicador en su lugar sin que viaje: la transición se apaga, se
+   mide, se fuerza el estilo y se vuelve a prender. Leer el estilo del pseudo
+   es lo que asienta el valor; sin eso, al sacar la clase el navegador ve el
+   cambio recién ahí y lo anima igual. De Apex. */
+function colocar(root, pseudo, fn) {
+  root.classList.add('is-placing');
+  fn();
+  void getComputedStyle(root, pseudo).width;
+  root.classList.remove('is-placing');
+}
+
 /**
  * Cablea un grupo (segmentado o tabs) para que se comporte solo.
  * onChange recibe el value del botón elegido.
@@ -281,7 +315,20 @@ export function syncTabs(tabs) {
 export function bindSwitcher(root, onChange) {
   const isSeg = root.classList.contains('ox-segmented');
   const optSel = isSeg ? '.ox-segmented__opt' : '.ox-tab';
-  const sync = () => (isSeg ? syncSegmented(root) : syncTabs(root));
+  const pseudo = isSeg ? '::before' : '::after';
+  const medir = () => (isSeg ? syncSegmented(root) : syncTabs(root));
+  /* La primera medida no viaja: la cápsula nace donde va. Antes la primera
+     medida llegaba recién en raf2, así que la cápsula nacía en ancho 0 contra
+     la izquierda y crecía, en cada vista que se montaba. Si ya trae una
+     posición (la que devolvió el repintado de la misma vista), viaja desde
+     ahí: es la que se tocó. De Apex. */
+  let colocado = !!root.style.getPropertyValue(isSeg ? '--seg-w' : '--tab-w');
+  const sync = () => {
+    if (colocado) return medir();
+    if (!root.offsetWidth) return;          // todavía sin layout: lo hace el ResizeObserver
+    colocar(root, pseudo, medir);
+    colocado = true;
+  };
 
   root.addEventListener('click', (e) => {
     const opt = e.target.closest(optSel);
@@ -292,9 +339,175 @@ export function bindSwitcher(root, onChange) {
     onChange?.(opt.dataset.value, opt);
   });
 
+  sync();
   new ResizeObserver(sync).observe(root);
   raf2(sync);   // las fuentes pueden cambiar el ancho después del primer layout
   return sync;
+}
+
+/* ── Cambiar o repintar la vista ────────────────────────────────────────────
+   Navegar es un fundido: la vista que se va pasa a un calco opaco encima y se
+   esfuma, y la nueva está entera debajo desde el primer cuadro (calcar, lo
+   usa el router).
+
+   Repintar la MISMA vista —Router.refresh() después de guardar, una vista
+   que se vuelve a pintar con el dato nuevo— era un innerHTML en seco, y eso
+   traía cuatro cosas que se veían en todas las apps:
+   · lo viejo se iba en el mismo cuadro en que llegaba lo nuevo;
+   · todo lo que tenía entrada propia volvía a entrar (filas escalonadas, el
+     vacío que sube, la línea de un gráfico que se dibuja de nuevo);
+   · los contadores (countTo) volvían a contar desde 0;
+   · el lugar se perdía: el scroll volvía arriba, un revelado abierto se
+     cerraba, el foco se iba y las cápsulas de los segmentados nacían de cero.
+   Ahora paint() repinta con repintar(): el mismo calco que al navegar, y lo
+   nuevo ASENTADO debajo —sin entradas, con los contadores en su valor y en el
+   mismo lugar que lo viejo—. Lo que no cambió es idéntico en las dos capas y no
+   se mueve; solo se funde lo distinto. El repintado con calco es de Pharos; la
+   foto del lugar, del remontar() de Apex. */
+
+/**
+ * La vista que se va no desaparece de un cuadro al otro: su contenido pasa a
+ * un calco con la misma clase de `.ox-main`, en la misma celda de la grilla, y
+ * se esfuma encima. Sin esto, la vieja se iba de golpe y la nueva arrancaba
+ * desde transparente: un cuadro vacío en cada navegación.
+ *
+ * El calco va sin ids (nadie tiene que encontrar un #campo que se está yendo),
+ * inerte, y conserva su scroll. Si la vista vieja todavía estaba entrando, el
+ * calco arranca desde la opacidad y el corrimiento en que la agarró. Si ya
+ * había otro calco yéndose, el nuevo va encima de ese: es el estado más
+ * reciente.
+ */
+export function calcar(host) {
+  if (!host || !host.firstChild || !host.parentElement) return null;
+  const cs = getComputedStyle(host);
+  const calco = document.createElement(host.tagName);
+  calco.className = host.className;
+  calco.classList.remove('ox-view', 'is-settled');
+  calco.classList.add('ox-main--saliente');
+  calco.setAttribute('aria-hidden', 'true');
+  calco.inert = true;
+  calco.style.opacity = cs.opacity;
+  if (cs.transform !== 'none') calco.style.transform = cs.transform;
+
+  const scrolls = [...host.querySelectorAll('*')]
+    .filter((el) => el.scrollTop || el.scrollLeft)
+    .map((el) => [el, el.scrollTop, el.scrollLeft]);
+  calco.append(...host.childNodes);
+  for (const el of calco.querySelectorAll('[id]')) el.removeAttribute('id');
+  let ancla = host;
+  while (ancla.nextElementSibling?.classList.contains('ox-main--saliente')) ancla = ancla.nextElementSibling;
+  ancla.after(calco);
+  for (const [el, top, left] of scrolls) { el.scrollTop = top; el.scrollLeft = left; }
+
+  // Mover un nodo en el DOM le REINICIA las animaciones CSS. Lo que tenía su
+  // propia entrada (un bloque que se funde, una lista escalonada) volvía a
+  // entrar desde cero adentro del calco que se está yendo: caía a opacidad 0
+  // en el primer cuadro y reaparecía mientras la vista se esfumaba. Medido en
+  // Chem Engine: 0 → 38 → 53 → 75 % con el calco bajando. Se dan por
+  // terminadas; lo que gira para siempre (un spinner) sigue girando.
+  for (const a of calco.getAnimations({ subtree: true })) {
+    if (a.effect?.getTiming().iterations !== Infinity) a.finish();
+  }
+
+  exit(calco, { fallback: 260 });
+  host.__calcadoEn = performance.now();
+  return calco;
+}
+
+const INDICADORES = [
+  { sel: '.ox-segmented', pseudo: '::before', x: '--seg-x', w: '--seg-w' },
+  { sel: '.ox-tabs', pseudo: '::after', x: '--tab-x', w: '--tab-w' },
+];
+
+/** Mientras se asienta un repintado, countTo() no cuenta: escribe el valor. */
+let asentando = 0;
+
+/** El lugar de una vista, antes de repintarla. Se reconoce por ids. */
+function fotografiar(root) {
+  const f = { scrolls: [], indicadores: new Map(), revelados: [], foco: null };
+  root.querySelectorAll('.ox-scroll').forEach((el) => f.scrolls.push(el.scrollTop));
+  for (const ind of INDICADORES) {
+    root.querySelectorAll(`${ind.sel}[id]`).forEach((el) => {
+      // Lo que se VE, no el destino: si la cápsula venía viajando, sigue desde ahí.
+      const cs = getComputedStyle(el, ind.pseudo);
+      const x = cs.transform && cs.transform !== 'none' ? new DOMMatrixReadOnly(cs.transform).m41 : 0;
+      f.indicadores.set(el.id, { ind, x, w: parseFloat(cs.width) || 0 });
+    });
+  }
+  root.querySelectorAll('.ox-reveal.is-open[id]').forEach((el) => f.revelados.push(el.id));
+  const act = document.activeElement;
+  const dueño = act && root.contains(act) ? act.closest('[id]') : null;
+  // Se reconoce por su id o por el data-value dentro de un grupo con id; si
+  // no, no hay forma honesta de encontrar su gemelo y el foco no se devuelve.
+  if (dueño && root.contains(dueño) && (dueño === act || act.dataset.value != null)) {
+    f.foco = { id: dueño.id, valor: dueño === act ? null : act.dataset.value };
+  }
+  return f;
+}
+
+/** Lo que la vista tiene que ver ANTES de cablearse: revelados e indicadores. */
+function devolverAlPintar(root, f) {
+  for (const id of f.revelados) root.querySelector(`#${CSS.escape(id)}`)?.classList.add('is-open');
+  for (const [id, { ind, x, w }] of f.indicadores) {
+    const el = root.querySelector(`#${CSS.escape(id)}`);
+    if (!el?.matches(ind.sel) || !w) continue;
+    colocar(el, ind.pseudo, () => {
+      el.style.setProperty(ind.x, `${x}px`);
+      el.style.setProperty(ind.w, `${w}px`);
+    });
+  }
+}
+
+/**
+ * Repinta `root` con `poner()`, que escribe lo nuevo. Si `root` ya tenía una
+ * vista, es un fundido que no pierde el lugar (ver arriba) y devuelve true; si
+ * estaba vacío, solo pinta.
+ *
+ * Si `root` se calcó hace un instante (el router, al navegar; una vista que
+ * pinta «cargando» y el dato a los pocos ms), lo nuevo va directo debajo de
+ * ese calco: otro en el medio dejaba ver un instante el estado intermedio
+ * —encabezado sin cuerpo— y la pantalla bajaba de brillo (Pharos).
+ */
+export function repintar(root, poner) {
+  const recien = performance.now() - (root.__calcadoEn ?? -Infinity) < 60;
+  const f = !recien && root.firstChild ? fotografiar(root) : null;
+  const calco = f ? calcar(root) : null;
+  poner();
+  if (!calco) return false;
+  devolverAlPintar(root, f);
+  asentar(root, f);
+  return true;
+}
+
+/* Lo nuevo queda quieto debajo del calco: sus entradas se dan por terminadas
+   (lo que gira para siempre sigue, y las transiciones también: una cápsula
+   que viene de donde estaba tiene que llegar viajando). Se hace dos veces:
+   ahora, con lo que trajo el HTML, y al terminar la tarea, con lo que la vista
+   haya arrancado al cablearse. Recién ahí se devuelven el scroll y el foco,
+   que dependen del alto final. */
+function asentar(root, f) {
+  const terminar = () => {
+    for (const a of root.getAnimations({ subtree: true })) {
+      if (a.effect?.target === root || a instanceof CSSTransition) continue;
+      if (a.effect?.getTiming().iterations !== Infinity) a.finish();
+    }
+  };
+  asentando++;
+  terminar();
+  queueMicrotask(() => {
+    asentando--;
+    terminar();
+    const scrolls = root.querySelectorAll('.ox-scroll');
+    f.scrolls.forEach((top, i) => { if (scrolls[i] && top) scrolls[i].scrollTop = top; });
+    // Si la vista ya puso el foco donde quería, se respeta.
+    if (f.foco && (!document.activeElement || document.activeElement === document.body)) {
+      const dueño = root.querySelector(`#${CSS.escape(f.foco.id)}`);
+      const el = f.foco.valor != null
+        ? dueño?.querySelector(`[data-value="${CSS.escape(f.foco.valor)}"]`)
+        : dueño;
+      el?.focus({ preventScroll: true });
+    }
+  });
 }
 
 /* ── Campo numérico ─────────────────────────────────────────────────────────
@@ -397,6 +610,10 @@ export function toggleReveal(el, open) {
 /* ── Números que cuentan ────────────────────────────────────────────────────
    Un contador que salta de 0 a 1284 no se lee; uno que corre, sí. */
 export function countTo(el, to, { from = 0, duration = 700, format = (n) => n } = {}) {
+  // Repintando la misma vista, el número ya estaba en pantalla: volver a
+  // contar desde 0 lo haría entrar de nuevo. Va el valor; si cambió, el
+  // fundido del repintado lo muestra.
+  if (asentando) { el.textContent = format(Math.round(to)); return; }
   const start = performance.now();
   const ease = (t) => 1 - Math.pow(1 - t, 3);
   const tick = (now) => {

@@ -10,7 +10,7 @@
    la app se degrada sola después de un rato de uso.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { exit } from './motion.js';
+import { calcar } from './motion.js';
 
 const routes = new Map();
 const listeners = new Set();
@@ -55,50 +55,6 @@ function release() {
   }
 }
 
-/**
- * La vista que se va no desaparece de un cuadro al otro: su contenido pasa a
- * un calco con la misma clase de `.ox-main`, en la misma celda de la grilla, y
- * se esfuma encima mientras la nueva entra. Sin esto, la vieja se iba de golpe
- * y la nueva arrancaba desde transparente: un cuadro vacío en cada navegación.
- *
- * El calco va sin ids (nadie tiene que encontrar un #campo que se está yendo),
- * inerte, y conserva su scroll. Si la vista vieja todavía estaba entrando, el
- * calco arranca desde la opacidad y el corrimiento en que la agarró.
- */
-function retirarVista() {
-  if (!host || !host.firstChild || !host.parentElement) return null;
-  const cs = getComputedStyle(host);
-  const calco = document.createElement(host.tagName);
-  calco.className = host.className;
-  calco.classList.remove('ox-view', 'is-settled');
-  calco.classList.add('ox-main--saliente');
-  calco.setAttribute('aria-hidden', 'true');
-  calco.inert = true;
-  calco.style.opacity = cs.opacity;
-  if (cs.transform !== 'none') calco.style.transform = cs.transform;
-
-  const scrolls = [...host.querySelectorAll('*')]
-    .filter((el) => el.scrollTop || el.scrollLeft)
-    .map((el) => [el, el.scrollTop, el.scrollLeft]);
-  calco.append(...host.childNodes);
-  for (const el of calco.querySelectorAll('[id]')) el.removeAttribute('id');
-  host.after(calco);
-  for (const [el, top, left] of scrolls) { el.scrollTop = top; el.scrollLeft = left; }
-
-  // Mover un nodo en el DOM le REINICIA las animaciones CSS. Lo que tenía su
-  // propia entrada (un bloque que se funde, una lista escalonada) volvía a
-  // entrar desde cero adentro del calco que se está yendo: caía a opacidad 0
-  // en el primer cuadro y reaparecía mientras la vista se esfumaba. Medido en
-  // Chem Engine: 0 → 38 → 53 → 75 % con el calco bajando. Se dan por
-  // terminadas; lo que gira para siempre (un spinner) sigue girando.
-  for (const a of calco.getAnimations({ subtree: true })) {
-    if (a.effect?.getTiming().iterations !== Infinity) a.finish();
-  }
-
-  exit(calco, { fallback: 260 });
-  return calco;
-}
-
 /** Navega. Repetir la vista+parámetro actual no hace nada (evita repintados). */
 export function go(name, param = null) {
   const route = routes.get(name);
@@ -118,7 +74,10 @@ export function go(name, param = null) {
   document.querySelectorAll('.ox-navitem').forEach((b) =>
     b.classList.toggle('is-active', b.dataset.view === navKey));
 
-  const saliente = retirarVista();
+  // La vista que se va pasa a un calco que se esfuma encima (calcar, en
+  // motion.js): sin esto se iba de golpe y la nueva arrancaba desde
+  // transparente, un cuadro vacío en cada navegación.
+  const saliente = calcar(host);
   route.view(param);
 
   // Si hay una vista yéndose, la nueva no anima nada: ya está entera y quieta
@@ -150,7 +109,9 @@ export function go(name, param = null) {
   return true;
 }
 
-/** Vuelve a montar la vista actual (después de un cambio de datos de fondo). */
+/** Vuelve a montar la vista actual (después de un cambio de datos de fondo).
+ *  Es un fundido que no pierde el lugar —scroll, foco, revelados, cápsulas—
+ *  y no vuelve a hacer entrar nada: lo hace paint() (repintar, en motion.js). */
 export function refresh() {
   const route = routes.get(current.name);
   if (!route) return;

@@ -350,6 +350,7 @@
   transform: translateX(var(--tab-x, 0px));
   transition: transform var(--ox-t-3) var(--ox-ease), width var(--ox-t-3) var(--ox-ease);
 }
+.ox-tabs.is-placing::after { transition: none; }
 .ox-tab {
   display: flex;
   align-items: center;

@@ -7,7 +7,7 @@
 
 import { Icons } from './icons.js';
 import { Toast } from './overlays.js';
-import { initScrollFades } from './motion.js';
+import { initScrollFades, repintar } from './motion.js';
 
 /** El contenedor de la vista activa. Lazy: no asume cuándo corre este módulo. */
 let _view = null;
@@ -135,11 +135,18 @@ export function path(ruta, { colas = 2 } = {}) {
  * Reemplaza la vista. Monta los íconos declarativos y cablea los esfumados de
  * scroll: si pintás sin pasar por acá, los <i data-icon> quedan vacíos y los
  * bordes del scroll se cortan duro.
+ *
+ * Repintar la MISMA vista (Router.refresh(), o la vista que se vuelve a pintar
+ * con el dato nuevo) es un fundido que no pierde el lugar ni vuelve a hacer
+ * entrar nada: ver repintar() en motion.js. Al navegar, el router ya se llevó
+ * la vista vieja y esto solo pinta.
  */
 export function paint(html) {
   const el = viewEl();
-  el.innerHTML = html;
-  Icons.mount(el);
+  repintar(el, () => {
+    el.innerHTML = html;
+    Icons.mount(el);
+  });
   initScrollFades(el);
   return el;
 }

@@ -334,6 +334,8 @@ input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; marg
   transform: translateX(var(--seg-x, 2px));
   transition: transform var(--ox-t-3) var(--ox-ease), width var(--ox-t-3) var(--ox-ease);
 }
+/* Al nacer o al repintarse la cápsula se pone en su lugar sin viajar (colocar() en motion.js). */
+.ox-segmented.is-placing::before { transition: none; }
 .ox-segmented__opt {
   position: relative;
   z-index: 1;
