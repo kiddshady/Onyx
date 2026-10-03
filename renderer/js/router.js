@@ -10,7 +10,7 @@
    la app se degrada sola después de un rato de uso.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { calcar } from './motion.js';
+import { calcar, recienCalcado } from './motion.js';
 
 const routes = new Map();
 const listeners = new Set();
@@ -77,7 +77,23 @@ export function go(name, param = null) {
   // La vista que se va pasa a un calco que se esfuma encima (calcar, en
   // motion.js): sin esto se iba de golpe y la nueva arrancaba desde
   // transparente, un cuadro vacío en cada navegación.
-  const saliente = calcar(host);
+  //
+  // Salvo que el host se haya calcado hace un instante: un refresh() y un
+  // go() en la misma tarea (en Quire, abrir o cerrar un documento desde otra
+  // vista: el aviso repinta la vista actual y enseguida se navega). Lo que
+  // hay en el host es un estado intermedio que el calco del refresh —casi
+  // opaco todavía— no dejó ver. Calcarlo otra vez dejaba DOS calcos
+  // fundiéndose juntos, y el intermedio (Páginas con las hojas en blanco)
+  // asomaba hasta un 25 % a mitad de camino (shell-29). Se descarta, y lo
+  // nuevo va directo debajo del calco que ya está: el criterio de repintar().
+  //
+  // `__pinta` dice que en el host vive otra vista: lo que el repintado de
+  // recién dejó pendiente para el final de la tarea (devolver el scroll y el
+  // foco, asentar en motion.js) ya no es para ella.
+  if (host) host.__pinta = (host.__pinta ?? 0) + 1;
+  const intermedio = !!host && recienCalcado(host);
+  if (intermedio) host.replaceChildren();
+  const saliente = intermedio || calcar(host);
   route.view(param);
 
   // Si hay una vista yéndose, la nueva no anima nada: ya está entera y quieta

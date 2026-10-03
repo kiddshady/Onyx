@@ -11,7 +11,7 @@
 import { Icons } from './icons.js';
 import { Tooltip, Toast, Menu, Modal } from './overlays.js';
 import Router from './router.js';
-import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher, swap } from './motion.js';
+import { initClickFlash, initScrollFades, raf2, countTo, tick, bindSwitcher, swap, numero, frase } from './motion.js';
 import { viewEl, esc, paint, head, empty, mark, status, attempt, copy, colorToken, path } from './ui.js';
 import { fmtBytes, relTime, fmtDate, plural, monogram } from './format.js';
 import { designHTML, wireDesign } from './design-view.js';
@@ -73,6 +73,8 @@ async function newItemModal() {
       <textarea class="ox-textarea" id="f-note" placeholder="Para qué es esto…"></textarea>
     </div>`;
 
+  // Sin autofocus: el foco arranca en el Nombre, que es lo que se viene a
+  // escribir, y Enter ahí crea (la única acción primaria).
   const ok = await Modal.show({
     title: 'Nuevo ítem',
     sub: 'Se guarda como un archivo JSON suelto en la carpeta de datos.',
@@ -80,7 +82,7 @@ async function newItemModal() {
     width: 460,
     actions: [
       { label: 'Cancelar', value: null },
-      { label: 'Crear', value: true, variant: 'primary', autofocus: true },
+      { label: 'Crear', value: true, variant: 'primary' },
     ],
   });
   if (!ok) return null;
@@ -261,11 +263,20 @@ function viewPiezas() {
   }) + designHTML());
 
   wireDesign(viewEl());
+  /* La entrada se repite con la Web Animations API y SIN fill: al terminar no
+     queda nada aplicado. Antes era un `style.animation` en línea con `both`,
+     que retenía para siempre el último cuadro (transform y opacidad): el
+     cuerpo pasaba a ser bloque contenedor de lo `fixed` y frontera de
+     backdrop, y el inline le hubiera ganado a cualquier salida (shell-35).
+     Duración y curva salen de los tokens, no de números sueltos. */
   document.getElementById('replay')?.addEventListener('click', () => {
     const body = document.getElementById('design-body');
-    body.style.animation = 'none';
-    void body.offsetWidth;   // reinicia la animación
-    body.style.animation = 'ox-glide-in 420ms var(--ox-ease) both';
+    const tok = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    body.__entrada?.cancel();
+    body.__entrada = body.animate(
+      [{ opacity: 0, transform: 'translateX(-10px)' }, { opacity: 1, transform: 'none' }],   // ox-glide-in
+      { duration: parseFloat(tok('--ox-t-4')) || 420, easing: tok('--ox-ease') || 'ease-out' },
+    );
   });
 }
 
@@ -480,11 +491,13 @@ function wireShell() {
 
 /** Todo lo que vive fuera de la vista: statusbar, contadores del rail, contexto. */
 function updateChrome() {
-  document.querySelector('[data-view="items"] .ox-navitem__count').textContent = S.items.length;
-  document.getElementById('stat-items').textContent = S.items.length;
+  /* Los contadores nacen vacíos en el HTML: el primer dato no es un cambio y
+     no destella. Con un «0» de relleno, el primero contaba como cambio. */
+  numero(document.querySelector('[data-view="items"] .ox-navitem__count'), S.items.length);
+  numero(document.getElementById('stat-items'), S.items.length);
 
   const saved = document.querySelector('#stat-saved .ox-statusbar__value');
-  if (saved) saved.textContent = S.lastSaved ? relTime(S.lastSaved) : '—';
+  if (saved) frase(saved, S.lastSaved ? relTime(S.lastSaved) : '—');
 
   /* La carpeta de datos, recortada por el medio: en un rail de 212px no entra
      entera ninguna ruta, y la cola —el nombre de la app y `data`— es lo único

@@ -63,12 +63,39 @@ app.whenReady().then(async () => {
   // la que `tap` existe al lado de `click`: un evento fabricado a mano prueba el
   // manejador, no el camino que recorre la tecla hasta llegar a él.
   const escape = () => win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+  // Enter entero: keyDown, el char (es el que activa un botón enfocado) y keyUp.
+  const enter = () => {
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Enter' });
+    win.webContents.sendInputEvent({ type: 'char', keyCode: '\r' });
+    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Enter' });
+  };
+  /* Lo que se VE en un rectángulo de la ventana: el brillo medio y cuánto
+     varía (el desvío). Una foto de lo que pintó Chromium, no del DOM: un
+     z-index que se escapa o un vidrio que no esmerila solo se ven acá. */
+  const brillo = async (r) => {
+    const img = await win.webContents.capturePage({ x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height) });
+    const { width, height } = img.getSize();
+    const bm = img.toBitmap();   // BGRA
+    let s = 0; let s2 = 0;
+    for (let i = 0; i < width * height; i++) {
+      const l = 0.2126 * bm[i * 4 + 2] + 0.7152 * bm[i * 4 + 1] + 0.0722 * bm[i * 4];
+      s += l; s2 += l * l;
+    }
+    const n = width * height; const media = s / n;
+    return { media: +media.toFixed(1), desvio: +Math.sqrt(Math.max(0, s2 / n - media * media)).toFixed(1) };
+  };
 
   console.log('\n1. Arranque');
   ok('el splash se fue', !(await js(`!!document.getElementById('boot-splash')`)));
   ok('el shell está montado', await js(`!!document.querySelector('.ox-titlebar') && !!document.querySelector('.ox-rail')`));
   ok('los <i data-icon> se reemplazaron por SVG', !(await js(`!!document.querySelector('i[data-icon]')`)));
   ok('la vista inicial pintó algo', (await js(`document.getElementById('view').children.length`)) > 0);
+  /* Los contadores del chrome nacen vacíos en el HTML: el primer dato no es un
+     cambio. Con un «0» de relleno, numero() lo tomaba como cambio y quedaban
+     teñidos de acento mientras se iba el splash (Finway 0.8.5). */
+  ok('los contadores del chrome no destellan al arrancar',
+    await js(`!document.querySelector('.ox-titlebar .ox-ticked, .ox-rail .ox-ticked, .ox-statusbar .ox-ticked')
+      && document.querySelector('.ox-navitem__count').textContent !== ''`));
 
   console.log('\n2. Crear por la UI real: modal → disco');
   await click('#btn-new');
@@ -164,6 +191,29 @@ app.whenReady().then(async () => {
   })()`);
   ok('el cuerpo del inspector no esfuma abajo, con pie o sin él',
     fade && fade.conPie === '0px' && fade.sinPie === '0px', JSON.stringify(fade));
+
+  /* Lo que va de borde a borde se queda sin la sangría. `.ox-bleed` era una
+     regla aparte que pisaba el padding, y con (0,1,0) contra (0,3,0) no le
+     ganaba nunca: en Quire el lector quedaba con 24 px de más a cada lado. Y
+     un __main de borde a borde no estira su .ox-scroll hasta afuera. */
+  const bleed = await js(`(() => {
+    const view = document.getElementById('view');
+    const a = document.createElement('div'); a.className = 'ox-bleed';
+    const b = document.createElement('div'); b.className = 'ox-viewbody';
+    b.innerHTML = '<div class="ox-viewbody__main ox-viewbody__main--bleed"><div class="ox-scroll"></div></div>';
+    const c = document.createElement('div');
+    view.append(a, b, c);
+    const r = {
+      bleed: getComputedStyle(a).paddingLeft,
+      mainBleed: getComputedStyle(b.firstChild).paddingLeft,
+      scrollEnBleed: getComputedStyle(b.querySelector('.ox-scroll')).marginRight,
+      comun: getComputedStyle(c).paddingLeft,
+    };
+    a.remove(); b.remove(); c.remove();
+    return r;
+  })()`);
+  ok('.ox-bleed se queda sin la sangría', bleed.bleed === '0px' && bleed.comun === '24px', JSON.stringify(bleed));
+  ok('un __main de borde a borde no estira su scroll por fuera', bleed.mainBleed === '0px' && bleed.scrollEnBleed === '0px', JSON.stringify(bleed));
 
   /* ── 4-ter. El encabezado cierra con línea donde hay inspector ─────────────
      El panel es de otro plano y arranca con un borde duro justo debajo del
@@ -335,6 +385,129 @@ app.whenReady().then(async () => {
   await sleep(600);
   ok('el segundo Escape sí cierra el diálogo', !(await hayModal()));
 
+  /* ── 5-ter. El modal arranca en su campo, y Enter aplica (U5) ─────────────
+     Sin `autofocus`, el foco iba al primer botón o campo del modal, que en
+     orden es la cruz del encabezado: lo que se tipeaba no entraba a ningún
+     lado, y Enter en el campo no hacía nada (el rango de Imprimir de Quire,
+     ux-06 e imprimir-16). Y la confirmación destructiva arrancaba con el foco
+     en el botón rojo: un Enter por reflejo borraba (ux-09). Todo por el
+     camino real: el modal lo abre un botón, y las teclas van por
+     sendInputEvent. Si el Enter no se frenara, le llegaría como click al
+     botón que abrió el modal (recupera el foco al cerrarse) y lo reabriría. */
+  console.log('\n5-ter. El modal arranca en su campo, y Enter aplica');
+  win.focus();
+  win.webContents.focus();
+  await sleep(150);
+  const estadoModal = () => js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const a = document.activeElement;
+    return { abierto: Modal.isOpen === true, res: window.__res, foco: a?.id || a?.textContent.trim() || null,
+      cruz: !!a?.matches('[data-dismiss]'), sel: a?.tagName === 'INPUT' ? [a.selectionStart, a.selectionEnd] : null,
+      clicks: window.__clicks, modales: document.querySelectorAll('.ox-modal__anim:not([data-state])').length };
+  })()`);
+  await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const b = document.createElement('button');
+    b.id = 'm-abre'; b.textContent = 'Renombrar';
+    b.style.cssText = 'position:fixed;left:40px;top:40px;z-index:50';
+    window.__clicks = 0; window.__res = 'pendiente';
+    b.addEventListener('click', () => {
+      window.__clicks++;
+      Modal.show({ title: 'Renombrar', body: '<div class="ox-field"><input class="ox-input" id="m-nombre" value="viejo"></div>',
+        actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', value: 'guardado', variant: 'primary' }] })
+        .then((v) => { window.__res = v; });
+    });
+    document.body.append(b);
+    b.focus(); b.click();
+    return true;
+  })()`);
+  await sleep(250);
+  const mAbierto = await estadoModal();
+  ok('sin autofocus, el foco arranca en el campo (no en la cruz) y con el texto elegido',
+    mAbierto.abierto && mAbierto.foco === 'm-nombre' && !mAbierto.cruz && mAbierto.sel?.[0] === 0 && mAbierto.sel?.[1] === 5, JSON.stringify(mAbierto));
+  enter();
+  await sleep(450);
+  const mEnter = await estadoModal();
+  ok('Enter en el campo resuelve con la acción primaria', mEnter.res === 'guardado' && !mEnter.abierto, JSON.stringify(mEnter));
+  ok('y no le llega como click al botón que abrió el modal (no se reabre)', mEnter.clicks === 1 && mEnter.modales === 0, JSON.stringify(mEnter));
+
+  // Con la primaria apagada (una vista que valida), Enter no hace nada. Y con
+  // solo una roja, tampoco: lo que no tiene vuelta atrás no sale de un Enter.
+  const conEnter = async (acciones, apagar) => {
+    await js(`(async () => {
+      const { Modal } = await import('./js/overlays.js');
+      window.__res = 'pendiente';
+      Modal.show({ title: 'Prueba', body: '<input class="ox-input" id="m-campo">', actions: ${acciones} }).then((v) => { window.__res = v; });
+      return true;
+    })()`);
+    await sleep(250);
+    if (apagar) await js(`document.querySelector('.ox-modal__anim:not([data-state]) .ox-btn--primary').disabled = true; true`);
+    enter();
+    await sleep(300);
+    const r = await estadoModal();
+    await js(`(async () => { (await import('./js/overlays.js')).Modal.close(null); return true; })()`);
+    await sleep(400);
+    return r;
+  };
+  const mApagada = await conEnter(`[{ label: 'Cancelar', value: null }, { label: 'Aplicar', value: 'aplicado', variant: 'primary' }]`, true);
+  ok('con la primaria deshabilitada, Enter no resuelve', mApagada.abierto && mApagada.res === 'pendiente' && mApagada.foco === 'm-campo', JSON.stringify(mApagada));
+  const mRoja = await conEnter(`[{ label: 'Cancelar', value: null }, { label: 'Borrar', value: 'borrado', variant: 'danger-solid' }]`, false);
+  ok('con solo una acción roja, Enter tampoco', mRoja.abierto && mRoja.res === 'pendiente', JSON.stringify(mRoja));
+
+  // Sin campos: la acción primaria, nunca la cruz.
+  await js(`(async () => { const { Modal } = await import('./js/overlays.js');
+    Modal.show({ title: 'Aviso', sub: 'Sin campos', actions: [{ label: 'Cerrar', value: null }, { label: 'Aceptar', value: true, variant: 'primary' }] }); return true; })()`);
+  await sleep(250);
+  const mSinCampo = await estadoModal();
+  await js(`(async () => { (await import('./js/overlays.js')).Modal.close(null); return true; })()`);
+  await sleep(400);
+  ok('sin campos, el foco va a la acción primaria', mSinCampo.foco === 'Aceptar' && !mSinCampo.cruz, JSON.stringify(mSinCampo));
+
+  // confirm({ danger }): arranca en Cancelar, y un Enter por reflejo cancela.
+  await js(`(async () => { const { Modal } = await import('./js/overlays.js'); window.__res = 'pendiente';
+    Modal.confirm({ title: '¿Borrar todo?', confirmLabel: 'Borrar todo', danger: true }).then((v) => { window.__res = v; }); return true; })()`);
+  await sleep(250);
+  const mPeligro = await estadoModal();
+  enter();
+  await sleep(450);
+  const mPeligroEnter = await estadoModal();
+  ok('confirm({ danger }) arranca con el foco en Cancelar', mPeligro.foco === 'Cancelar', JSON.stringify(mPeligro));
+  ok('y un Enter por reflejo cancela', mPeligroEnter.res === false && !mPeligroEnter.abierto, JSON.stringify(mPeligroEnter));
+  ok('Modal.isOpen dice si hay un modal abierto', mPeligro.abierto && !mPeligroEnter.abierto, JSON.stringify({ mPeligro, mPeligroEnter }));
+  await js(`document.getElementById('m-abre')?.remove(); true`);
+
+  /* ── 5-quater. El hint de un ítem de menú se ve (U6) ──────────────────────
+     Menu.show dibujaba label, ícono, atajo y tilde, y tiraba el `hint`: tres
+     menús de Quire lo mandaban (el papel con sus medidas, las impresoras con
+     «del sistema») y no se veía (ux-07). Se mide que esté, que entre en su
+     fila sin pisar el nombre, y que vaya atenuado. */
+  console.log('\n5-quater. El hint de un ítem de menú se ve');
+  const hint = await js(`(async () => {
+    const { Menu } = await import('./js/overlays.js');
+    const ancla = document.createElement('button');
+    ancla.textContent = 'Papel';
+    ancla.style.cssText = 'position:fixed;left:40px;top:40px;z-index:50';
+    document.body.append(ancla);
+    Menu.show(ancla, [{ label: 'A4', hint: '210 × 297 mm', selected: true }, { label: 'Carta', hint: '216 × 279 mm', key: 'Ctrl 1' }]);
+    await new Promise((r) => setTimeout(r, 300));
+    const tenue = (() => { const s = document.createElement('span'); s.style.color = 'var(--ox-text-4)'; document.body.append(s); const c = getComputedStyle(s).color; s.remove(); return c; })();
+    const filas = [...document.querySelectorAll('.ox-menu:not([data-state]) .ox-menuitem')].map((it) => {
+      const h = it.querySelector('.ox-menuitem__hint');
+      if (!h) return null;
+      const ri = it.getBoundingClientRect(); const rh = h.getBoundingClientRect(); const rl = it.querySelector('.ox-truncate').getBoundingClientRect();
+      const k = it.querySelector('.ox-menuitem__key')?.getBoundingClientRect();
+      return { texto: h.textContent, ancho: Math.round(rh.width), adentro: rh.left >= ri.left && rh.right <= ri.right + 0.5 && rh.top >= ri.top && rh.bottom <= ri.bottom + 0.5,
+        noPisa: rh.left >= rl.right - 0.5 && (!k || k.left >= rh.right - 0.5), color: getComputedStyle(h).color };
+    });
+    Menu.close(true);
+    ancla.remove();
+    return { tenue, filas };
+  })()`);
+  ok('el hint de cada ítem se ve, entra en su fila y no pisa el nombre ni el atajo',
+    hint.filas.length === 2 && hint.filas.every((f) => f && f.ancho > 20 && f.adentro && f.noPisa) && hint.filas[0].texto === '210 × 297 mm',
+    JSON.stringify(hint));
+  ok('y va atenuado (--ox-text-4)', hint.filas.every((f) => f && f.color === hint.tenue), JSON.stringify(hint));
+
   /* ── 6. El medidor indeterminado ───────────────────────────────────────────
      Una pista vacía se lee como un componente roto, no como «esperando». Se
      muestrea el recorrido entero en vez de mirar un instante.
@@ -420,6 +593,131 @@ app.whenReady().then(async () => {
   ok('cada paso real despacha change', paso.cambios === 13, `${paso.cambios}`);
   ok('el input no muestra el control nativo', paso.apariencia === 'textfield', paso.apariencia);
 
+  /* Mantener apretado mientras el primer paso repinta el panel (lo normal: la
+     vista escucha el cambio y vuelve a pintar). El botón apretado sale del
+     documento y el pointerup cae sobre el botón NUEVO: el root viejo no se
+     entera. Sin el freno en window, el contador viejo seguía corriendo solo y
+     cada paso volvía a repintar. Salió de Quire (las copias de Imprimir). */
+  const aguante = await js(`(async () => {
+    const { bindStepper } = await import('./js/motion.js');
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-9999px;top:0';
+    document.body.appendChild(host);
+    let pasos = 0;
+    const pintar = () => {
+      host.innerHTML = '<div class="ox-stepper"><input class="ox-input ox-num" type="number" min="0" max="99" step="1" value="' + (1 + pasos) + '">'
+        + '<button data-step="up"></button><button data-step="down"></button></div>';
+      bindStepper(host.querySelector('.ox-stepper'), () => { pasos++; pintar(); });
+    };
+    pintar();
+    const o = { bubbles: true, pointerId: 1, pointerType: 'mouse' };
+    host.querySelector('[data-step="up"]').dispatchEvent(new PointerEvent('pointerdown', o));
+    await new Promise((r) => setTimeout(r, 60));
+    host.querySelector('[data-step="up"]').dispatchEvent(new PointerEvent('pointerup', o));
+    await new Promise((r) => setTimeout(r, 1200));
+    const r = { pasos, valor: host.querySelector('input').value };
+    host.remove();
+    return r;
+  })()`);
+  ok('soltar frena aunque el primer paso haya repintado el stepper', aguante.pasos === 1 && aguante.valor === '2', JSON.stringify(aguante));
+
+  /* ── 6-ter. Lo apagado se ve apagado, y se apaga de a poco ────────────────
+     Un .ox-iconbtn deshabilitado se veía igual que uno activo y se iluminaba
+     al pasarle el mouse (Chromium le aplica :hover): las flechas de Buscar,
+     el deshacer de la tinta y la barra de Páginas de Quire mentían (U3). Y
+     la flecha del stepper caía de 1 a .25 en un cuadro al llegar al tope,
+     porque su transición no incluía la opacidad (U4). Se mide el color
+     contra el token y la opacidad cuadro a cuadro.
+
+     Y dos cosas que salieron de esos mismos arreglos. La flecha que NACE en
+     el tope se fundía en cada montaje si algo había forzado el estilo antes
+     del cableado (100 100 76 58 … 25): tiene que estar en 25 desde el primer
+     cuadro. Y un .ox-iconbtn apagado con pointer-events: none se quedaba sin
+     tooltip, que en un botón de ícono es su nombre: con el mouse de verdad
+     encima no se ilumina, pero dice qué es y su atajo. */
+  console.log('\n6-ter. Lo apagado se ve apagado');
+  const apagados = await js(`(async () => {
+    const { bindStepper } = await import('./js/motion.js');
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:40px;top:40px;width:140px;z-index:50';
+    host.innerHTML = '<button class="ox-iconbtn" id="ib-on"></button><button class="ox-iconbtn" id="ib-off" disabled></button>'
+      + '<span id="ib-tenue" style="color:var(--ox-text-4)"></span>'
+      + '<div class="ox-stepper"><input class="ox-input" type="number" value="1"><div class="ox-stepper__btns">'
+      + '<button class="ox-stepper__btn" data-step="up"></button><button class="ox-stepper__btn" data-step="down"></button></div></div>';
+    document.body.append(host);
+    const cs = (id) => getComputedStyle(host.querySelector(id));
+    const r = { tenue: cs('#ib-tenue').color, on: cs('#ib-on').color, off: cs('#ib-off').color };
+    const flecha = host.querySelector('[data-step="down"]');
+    void getComputedStyle(flecha).opacity;
+    await new Promise((ok) => requestAnimationFrame(ok));
+    flecha.disabled = true;
+    r.opacidad = [];
+    const t0 = performance.now();
+    while (performance.now() - t0 < 220) {
+      r.opacidad.push(Math.round(+getComputedStyle(flecha).opacity * 100));
+      await new Promise((ok) => requestAnimationFrame(ok));
+    }
+    // Un campo en 0 con mínimo 0: la flecha de abajo nace en el tope. El
+    // getComputedStyle de antes del cableado es «algo forzó el estilo entre
+    // el paint() y el bindStepper» (initScrollFades, colocar una cápsula).
+    const st = document.createElement('div');
+    st.className = 'ox-stepper';
+    st.innerHTML = '<input class="ox-input" type="number" min="0" max="9" value="0"><div class="ox-stepper__btns">'
+      + '<button class="ox-stepper__btn" data-step="up"></button><button class="ox-stepper__btn" data-step="down"></button></div>';
+    host.append(st);
+    const enTope = st.querySelector('[data-step="down"]');
+    void getComputedStyle(enTope).opacity;
+    bindStepper(st);
+    r.alNacer = [];
+    const t1 = performance.now();
+    while (performance.now() - t1 < 200) {
+      r.alNacer.push(Math.round(+getComputedStyle(enTope).opacity * 100));
+      await new Promise((ok) => requestAnimationFrame(ok));
+    }
+    host.remove();
+    return r;
+  })()`);
+  ok('un .ox-iconbtn deshabilitado se apaga (--ox-text-4)',
+    apagados.off === apagados.tenue && apagados.on !== apagados.tenue, JSON.stringify(apagados));
+  ok('la flecha del stepper se apaga fundiéndose, no de un cuadro al otro',
+    apagados.opacidad.some((v) => v > 30 && v < 95) && apagados.opacidad.at(-1) === 25, apagados.opacidad.join(' '));
+  ok('la que nace en el tope nace apagada (25 desde el primer cuadro, sin fundirse al montarse)',
+    apagados.alNacer.length > 3 && apagados.alNacer.every((v) => v === 25), apagados.alNacer.join(' '));
+
+  // El de al lado, prendido, es el control: con el mouse encima SÍ se ilumina
+  // (si no, el hover no estaría llegando y lo de abajo no probaría nada).
+  // matches(':hover') no sirve para esto: desde executeJavaScript da false
+  // aunque el estilo de :hover esté aplicado.
+  const ibPos = await js(`(() => {
+    const c = document.createElement('div');
+    c.id = 'ib-caja';
+    c.style.cssText = 'position:fixed;left:520px;top:520px;display:flex;gap:40px;z-index:50';
+    c.innerHTML = '<button class="ox-iconbtn" id="ib-prendido" data-tip="Rehacer"></button>'
+      + '<button class="ox-iconbtn" id="ib-tip" disabled data-tip="Deshacer" data-tip-key="Ctrl Z"></button>';
+    document.body.append(c);
+    const centro = (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+    return { prendido: centro(c.children[0]), apagado: centro(c.children[1]) };
+  })()`);
+  const ibHover = {};
+  for (const [cual, p] of Object.entries(ibPos)) {
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(p.x - 20), y: Math.round(p.y + 60) });
+    await sleep(500);
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(p.x), y: Math.round(p.y) });
+    await sleep(700);
+    ibHover[cual] = await js(`(() => {
+      const b = document.getElementById('${cual === 'prendido' ? 'ib-prendido' : 'ib-tip'}'); const cs = getComputedStyle(b);
+      const t = [...document.querySelectorAll('.ox-tooltip')].find((x) => !x.dataset.state);
+      return { fondo: cs.backgroundColor, color: cs.color, tip: t ? t.textContent : null };
+    })()`);
+  }
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: 4, y: H - 40 });
+  await sleep(300);
+  await js(`document.getElementById('ib-caja')?.remove(); true`);
+  ok('con el mouse encima, un .ox-iconbtn apagado no se ilumina (y el prendido de al lado sí)',
+    ibHover.prendido.fondo !== 'rgba(0, 0, 0, 0)' && ibHover.apagado.fondo === 'rgba(0, 0, 0, 0)' && ibHover.apagado.color === apagados.tenue,
+    JSON.stringify({ ...ibHover, tenue: apagados.tenue }));
+  ok('pero su tooltip sigue diciendo qué es y su atajo', ibHover.apagado.tip === 'DeshacerCtrl Z', JSON.stringify(ibHover));
+
   console.log('\n7. La fuente empaquetada carga de verdad');
   /* Éste es el chequeo que evita el fracaso silencioso: con CSP estricta y
      protocolo file://, un @font-face con la ruta mal puesta no tira error —
@@ -455,6 +753,86 @@ app.whenReady().then(async () => {
   await sleep(300);
   ok('cambiar la mono cambia lo que se pinta',
     (await js(`getComputedStyle(document.querySelector('#mono-sample')).fontFamily`)) !== antesMono);
+
+  /* ── 7-bis. La vitrina pone al día en vez de rehacer (U11) ────────────────
+     Es lo que se copia, así que tiene que mostrar el patrón bueno. Los
+     botones de mono se rehacían con innerHTML en cada click: el elegido
+     pasaba a primario de un cuadro al otro (nodo nuevo, sin de dónde
+     transicionar) y el destello del click se iba con el nodo viejo. Y el
+     valor del select de demo cambiaba con textContent. Se mide que sean los
+     MISMOS botones y que el cambio de variante corra como transición, y que
+     el valor del select haga relevo (shell-36). De paso, que su menú muestre
+     el `hint` (U6). */
+  console.log('\n7-bis. La vitrina pone al día en vez de rehacer');
+  const vitrina = await js(`(async () => {
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const { Menu } = await import('./js/overlays.js');
+    const host = document.getElementById('knob-mono');
+    const antes = [...host.querySelectorAll('[data-mono]')];
+    const otro = antes.find((b) => b.classList.contains('ox-btn--secondary'));
+    otro.click();
+    await espera(30);
+    const despues = [...host.querySelectorAll('[data-mono]')];
+    const r = {
+      mismos: antes.length === despues.length && antes.every((b, i) => b === despues[i]),
+      elegido: otro.classList.contains('ox-btn--primary') && !otro.classList.contains('ox-btn--secondary'),
+      primarios: despues.filter((b) => b.classList.contains('ox-btn--primary')).length,
+      transiciona: otro.getAnimations().some((a) => a instanceof CSSTransition),
+    };
+    const sel = document.getElementById('demo-select');
+    const val = sel.querySelector('.ox-select__value');
+    // Primero el que ya está elegido, antes de cualquier otro: swap() todavía
+    // no recuerda nada (el valor lo escribió el HTML) y relevaba la misma
+    // palabra por sí misma.
+    sel.click();
+    await espera(300);
+    const yaElegido = document.querySelector('.ox-menu:not([data-state]) .ox-menuitem.is-selected');
+    const valorAntes = val.textContent.trim();
+    yaElegido?.click();
+    r.mismo = { habia: !!yaElegido, relevo: !!val.querySelector(':scope > .ox-swap-out'), igual: val.textContent.trim() === valorAntes };
+    await espera(400);
+    sel.click();
+    await espera(300);
+    r.hint = document.querySelector('.ox-menu:not([data-state]) .ox-menuitem__hint')?.textContent || null;
+    const opcion = [...document.querySelectorAll('.ox-menu:not([data-state]) .ox-menuitem')].find((b) => !b.classList.contains('is-selected'));
+    r.nombre = opcion?.querySelector('.ox-truncate').textContent || null;
+    opcion?.click();
+    r.relevo = !!val.querySelector(':scope > .ox-swap-out--over');
+    await espera(400);
+    r.valor = val.textContent.trim();
+    sel.click();
+    await espera(300);
+    r.marcado = document.querySelector('.ox-menu:not([data-state]) .ox-menuitem.is-selected .ox-truncate')?.textContent || null;
+    Menu.close();
+    await espera(300);
+    return r;
+  })()`);
+  ok('los botones de mono son los mismos nodos: cambia la variante y transiciona',
+    vitrina.mismos && vitrina.elegido && vitrina.primarios === 1 && vitrina.transiciona, JSON.stringify(vitrina));
+  ok('el valor del select de demo cambia con relevo, y el menú marca el nuevo',
+    vitrina.relevo && vitrina.nombre && vitrina.valor === vitrina.nombre && vitrina.marcado === vitrina.nombre, JSON.stringify(vitrina));
+  ok('el menú del select muestra su hint («por defecto»)', vitrina.hint === 'por defecto', JSON.stringify(vitrina));
+  ok('elegir el que ya estaba elegido no releva nada', vitrina.mismo.habia && !vitrina.mismo.relevo && vitrina.mismo.igual, JSON.stringify(vitrina.mismo));
+
+  /* «Repetir entradas» (U10): la entrada se repetía con un style.animation en
+     línea con fill `both`, que retiene para siempre el último cuadro —el
+     cuerpo quedaba bloque contenedor de lo fixed y frontera de backdrop— y le
+     ganaría a cualquier salida (shell-35). Ahora va por la API, sin fill: se
+     mide que entre, y que al terminar no quede nada aplicado. */
+  const repetir = await js(`(async () => {
+    const body = document.getElementById('design-body');
+    document.getElementById('replay').click();
+    await new Promise((r) => setTimeout(r, 120));
+    const aMitad = +getComputedStyle(body).opacity;
+    await new Promise((r) => setTimeout(r, 600));
+    const cs = getComputedStyle(body);
+    return { aMitad: +aMitad.toFixed(2), inline: body.style.animation, nombre: cs.animationName,
+      transform: cs.transform, opacidad: cs.opacity, retenidas: body.getAnimations().length };
+  })()`);
+  ok('«Repetir entradas» vuelve a hacer entrar la vitrina', repetir.aMitad < 0.95, JSON.stringify(repetir));
+  ok('y al terminar no deja nada aplicado (animation: none, sin transform ni animación retenida)',
+    repetir.inline === '' && repetir.nombre === 'none' && repetir.transform === 'none' && repetir.opacidad === '1' && repetir.retenidas === 0,
+    JSON.stringify(repetir));
 
   console.log('\n8. Las perillas re-tintan de verdad');
   const antes = await js(`getComputedStyle(document.body).backgroundColor`);
@@ -928,6 +1306,52 @@ app.whenReady().then(async () => {
   ok('un texto suelto que se va sale esfumándose, no de golpe',
     seVaTexto.saliendo && seVaTexto.aMitad > 0 && seVaTexto.aMitad < 1 && seVaTexto.vacio, JSON.stringify(seVaTexto));
 
+  /* Dos relevos seguidos, antes de que lo del medio termine de entrar. El
+     calco le hacía finish() a todo lo que se llevaba: lo del medio saltaba a
+     opaco y se esfumaba desde ahí, mostrando entero un estado que nunca se
+     había visto. Se mide cuánto se ve de cada texto (su opacidad por la de sus
+     ancestros), cuadro a cuadro. */
+  const seguidos = await js(`(async () => {
+    const { swap } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cuadro = () => new Promise((r) => requestAnimationFrame(r));
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:40px;top:40px;width:300px';
+    document.body.append(el);
+    const visible = (txt) => { let max = 0;
+      for (const n of el.querySelectorAll('span')) {
+        if (n.textContent !== txt) continue;
+        let op = 1; for (let x = n; x && x !== el; x = x.parentElement) op *= +getComputedStyle(x).opacity;
+        max = Math.max(max, op);
+      }
+      return Math.round(max * 100) / 100; };
+    swap(el, '<span>uno</span>');
+    await espera(400);
+    // Lo del medio todavía no asomó (está en su espera): no se tiene que ver nunca.
+    swap(el, '<span>dos</span>', { relevo: true });
+    await espera(25);
+    const dosAntes = visible('dos');
+    swap(el, '<span>tres</span>', { relevo: true });
+    let dosMax = 0;
+    for (let i = 0; i < 25; i++) { dosMax = Math.max(dosMax, visible('dos')); await cuadro(); }
+    await espera(400);
+    // Lo del medio a mitad de su entrada: sale desde donde estaba, no desde opaco.
+    swap(el, '<span>cuatro</span>', { relevo: true });
+    await espera(110);
+    const cuatroAntes = visible('cuatro');
+    swap(el, '<span>cinco</span>', { relevo: true });
+    let cuatroMax = visible('cuatro');
+    for (let i = 0; i < 20; i++) { cuatroMax = Math.max(cuatroMax, visible('cuatro')); await cuadro(); }
+    await espera(500);
+    const fin = el.textContent;
+    el.remove();
+    return { dosAntes, dosMax, cuatroAntes, cuatroMax, fin };
+  })()`);
+  ok('dos relevos seguidos: lo que no había asomado no aparece nunca', seguidos.dosAntes <= 0.02 && seguidos.dosMax <= 0.05, JSON.stringify(seguidos));
+  ok('lo que venía entrando sale desde la opacidad que tenía, no desde opaco',
+    seguidos.cuatroAntes > 0.1 && seguidos.cuatroAntes < 0.9 && seguidos.cuatroMax <= seguidos.cuatroAntes + 0.05, JSON.stringify(seguidos));
+  ok('y al final queda solo lo último', seguidos.fin === 'cinco', JSON.stringify(seguidos));
+
   /* Fundido: una tabla que gana columnas. Con el relevo la tabla entera
      pasaba por media luz (0,5 la vieja, 0,3 la nueva). Con fundido la nueva
      está entera debajo desde el primer cuadro, y el calco es opaco y va por
@@ -1021,6 +1445,40 @@ app.whenReady().then(async () => {
   ok('valor(): siempre en el lugar, aunque cambien palabras', !vivo.valorPrimero && !vivo.valor.calco && vivo.valor.destello && vivo.valor.dice === 'hasta el martes', JSON.stringify(vivo));
   ok('deslizarAlto(): el alto viaja en vez de saltar',
     vivo.alto.altos.some((h) => h > vivo.alto.d0 + 1 && h < vivo.alto.final - 1), JSON.stringify(vivo.alto));
+
+  /* deslizarAncho (U9): lo mismo a lo ancho, para un ítem de una fila como la
+     statusbar. Se arma una fila con gap, el ítem cambia de texto adentro de
+     un relevo (como lo haría la app) y se mide su ancho y la x del vecino en
+     cada cuadro: los dos tienen que pasar por valores intermedios, no saltar.
+     En Quire, el nombre del documento corría a la página y la medida de un
+     cuadro al otro (shell-23). */
+  const ancho = await js(`(async () => {
+    const m = await import('./js/motion.js');
+    if (typeof m.deslizarAncho !== 'function') return { falta: true };
+    const fila = document.createElement('div');
+    fila.style.cssText = 'position:fixed;left:40px;top:40px;display:flex;gap:16px;z-index:50;font-size:12px';
+    fila.innerHTML = '<div class="ox-statusbar__item"><span>Ningún documento</span></div><div>vecino</div>';
+    document.body.append(fila);
+    const item = fila.firstElementChild; const valor = item.firstElementChild; const vecino = fila.lastElementChild;
+    await new Promise((ok) => requestAnimationFrame(ok));
+    const w0 = item.getBoundingClientRect().width; const x0 = vecino.getBoundingClientRect().left;
+    m.deslizarAncho(item, () => m.swap(valor, 'un documento con un nombre bastante largo.pdf', { relevo: true }));
+    const anchos = []; const xs = [];
+    for (let i = 0; i < 8; i++) {
+      anchos.push(Math.round(item.getBoundingClientRect().width)); xs.push(Math.round(vecino.getBoundingClientRect().left));
+      await new Promise((ok) => requestAnimationFrame(ok));
+    }
+    await new Promise((ok) => setTimeout(ok, 300));
+    const r = { w0: Math.round(w0), x0: Math.round(x0), anchos, xs, final: Math.round(item.getBoundingClientRect().width),
+      xFinal: Math.round(vecino.getBoundingClientRect().left), retiene: item.getAnimations().length };
+    fila.remove();
+    return r;
+  })()`);
+  ok('deslizarAncho(): el ancho viaja en vez de saltar, y el vecino lo acompaña',
+    !ancho.falta && ancho.final > ancho.w0 + 20
+      && ancho.anchos.some((w) => w > ancho.w0 + 1 && w < ancho.final - 1)
+      && ancho.xs.some((x) => x > ancho.x0 + 1 && x < ancho.xFinal - 1)
+      && ancho.retiene === 0, JSON.stringify(ancho));
 
   /* reconcile() sobre una tabla: las filas que siguen son el MISMO nodo y
      viajan (FLIP); la que se va sale fuera del flujo CON el ancho de sus
@@ -1420,6 +1878,41 @@ app.whenReady().then(async () => {
   ok('un bloque con entrada propia no vuelve a entrar adentro del calco',
     propia.every((f) => f.bloque >= 99), propia.map((f) => `${f.t}:${f.calco}/${f.bloque}`).join(' '));
 
+  /* Dos navegaciones seguidas, antes de que termine el primer fundido. El
+     calco nuevo va DEBAJO de los que todavía se están yendo: la pantalla del
+     instante siguiente es la misma composición que la del anterior (lo que se
+     iba sigue a la misma opacidad, encima de la vista que acaba de calcarse).
+     Encima de todos, el calco nuevo —opaco— tapaba de un cuadro al otro lo que
+     se iba a mitad de camino: un corte. Salió de Quire, que lo tenía así.
+     La segunda navegación va a los 90 ms y no a los 60: dentro de los 60 ms
+     de un calco go() ya no calca (lo intermedio no se llegó a ver, 9-septies),
+     y con 60 justos el test caía en el umbral. */
+  await click('[data-view="ajustes"]');
+  await sleep(700);
+  const seguidas = await js(`(async () => {
+    const vistas = [...document.querySelectorAll('.ox-navitem[data-view]')].map((b) => b.dataset.view)
+      .filter((v) => v !== 'ajustes');
+    // Cuánto de cada calco se ve, de arriba hacia abajo (después en el DOM = encima).
+    const pesos = () => {
+      const w = new Map(); let resto = 1;
+      for (const c of [...document.querySelectorAll('.ox-main--saliente')].reverse()) {
+        const a = +getComputedStyle(c).opacity; w.set(c, resto * a); resto *= 1 - a;
+      }
+      return w;
+    };
+    document.querySelector('.ox-navitem[data-view="' + vistas[0] + '"]').click();
+    const primero = document.querySelector('.ox-main--saliente');
+    await new Promise((r) => setTimeout(r, 90));
+    const antes = pesos().get(primero);
+    document.querySelector('.ox-navitem[data-view="' + vistas[1] + '"]').click();
+    const despues = pesos().get(primero);
+    await new Promise((r) => setTimeout(r, 600));
+    return { vistas: vistas.slice(0, 2), antes: Math.round(antes * 100), despues: Math.round((despues ?? 0) * 100),
+      calcos: document.querySelectorAll('.ox-main--saliente').length };
+  })()`);
+  ok('navegar dos veces seguidas no corta el fundido que estaba en curso',
+    seguidas.antes > 20 && Math.abs(seguidas.antes - seguidas.despues) <= 5 && seguidas.calcos === 0, JSON.stringify(seguidas));
+
   /* ── 9-quater. Repintar la misma vista ─────────────────────────────────────
      Router.refresh() (después de guardar, duplicar, borrar) repintaba en seco
      con innerHTML: lo viejo se iba en un cuadro, todo lo que tenía entrada
@@ -1495,6 +1988,240 @@ app.whenReady().then(async () => {
   ok('y el scroll queda donde estaba', repinte.filas.every((f) => Math.abs(f.scroll - repinte.scrollAntes) <= 1), sp);
   ok('el calco se va del DOM al terminar', repinte.calcos === 0, JSON.stringify(repinte.calcos));
 
+  /* ── 9-quinquies. Repintar no vuelve a desplegar lo plegable (U8) ─────────
+     Un .ox-plegable que nace visible se despliega desde 0 con una transición
+     (@starting-style), y repintar() daba por terminadas las animaciones pero
+     no las transiciones: la barra que ya estaba crecía de 0 a su alto debajo
+     del fundido y empujaba lo de abajo (Quire, la barra de tinta al cambiar
+     de documento, css-13). Se mide el alto en cada cuadro desde el primero,
+     en los dos caminos: sin nada que fuerce el estilo antes, y con una
+     cápsula que vuelve a su lugar (colocar() fuerza el estilo antes de
+     asentar, y la transición ya arrancó). Y uno que se prende DESPUÉS con
+     `hidden = false` se tiene que seguir desplegando. */
+  console.log('\n9-quinquies. Repintar no vuelve a desplegar lo plegable');
+  const plegRepinte = await js(`(async () => {
+    const { Router } = await import('./js/router.js');
+    const { paint } = await import('./js/ui.js');
+    const { bindSwitcher } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cuadro = () => new Promise((r) => requestAnimationFrame(r));
+    let conCapsula = false;
+    Router.define({ 'prueba-plegable': { view: () => {
+      paint('<div class="ox-scroll ox-grow">'
+        + (conCapsula ? '<div class="ox-segmented" id="pl-seg"><button class="ox-segmented__opt is-active" data-value="a">Uno</button>'
+          + '<button class="ox-segmented__opt" data-value="b">Dos, más largo</button></div>' : '')
+        + '<div class="ox-plegable" id="pl-barra"><div style="height:40px">barra</div></div>'
+        + '<div class="ox-plegable" id="pl-otra" hidden><div style="height:40px">otra</div></div>'
+        + '<div style="height:20px">abajo</div></div>');
+      if (conCapsula) bindSwitcher(document.getElementById('pl-seg'));
+    } } });
+    const serie = async (id) => {
+      const out = []; const t0 = performance.now();
+      while (performance.now() - t0 < 300) { out.push(Math.round(document.getElementById(id).getBoundingClientRect().height)); await cuadro(); }
+      return out;
+    };
+    Router.go('prueba-plegable');
+    await espera(600);
+    Router.refresh();
+    const sinCapsula = await serie('pl-barra');
+    conCapsula = true;
+    Router.refresh();
+    await espera(600);
+    Router.refresh();
+    const conCapsulaSerie = await serie('pl-barra');
+    await espera(300);
+    document.getElementById('pl-otra').hidden = false;
+    const despues = await serie('pl-otra');
+    Router.go('inicio');
+    await espera(500);
+    // Al navegar no corre sola: la vista que no quiere desplegarse debajo del
+    // calco llama a asentarPlegables() después de pintar (como el lector de
+    // Quire con la barra de tinta). Sola, sin el finish() de repintar.
+    const { asentarPlegables } = await import('./js/motion.js');
+    Router.define({ 'prueba-plegable-nav': { view: () => {
+      paint('<div class="ox-scroll ox-grow"><div class="ox-plegable" id="pl-nav"><div style="height:40px">barra</div></div></div>');
+      asentarPlegables?.(document.getElementById('view'));
+    } } });
+    Router.go('prueba-plegable-nav');
+    const alNavegar = await serie('pl-nav');
+    Router.go('inicio');
+    await espera(500);
+    return { sinCapsula, conCapsula: conCapsulaSerie, despues, alNavegar };
+  })()`);
+  ok('al repintar, un plegable visible tiene su alto desde el primer cuadro',
+    plegRepinte.sinCapsula.every((h) => h === 40), plegRepinte.sinCapsula.join(' '));
+  ok('también si algo forzó el estilo antes de asentar (una cápsula que vuelve a su lugar)',
+    plegRepinte.conCapsula.every((h) => h === 40), plegRepinte.conCapsula.join(' '));
+  ok('y uno que se prende después se sigue desplegando',
+    plegRepinte.despues.some((h) => h > 0 && h < 40) && plegRepinte.despues.at(-1) === 40, plegRepinte.despues.join(' '));
+  ok('al navegar, asentarPlegables() después de pintar lo deja en su alto desde el primer cuadro',
+    plegRepinte.alNavegar.every((h) => h === 40), plegRepinte.alNavegar.join(' '));
+
+  /* ── 9-sexies. La vista nueva no se asoma por encima del calco (U2) ───────
+     El calco del router es z-index 1, y la vista nueva no era un contexto de
+     apilamiento: un hijo suyo con z-index 2 (el panel de miniaturas del
+     lector de Quire, css-01; el th sticky de una tabla que no scrollea) le
+     ganaba en la raíz y se veía entero desde el primer cuadro. Se congela el
+     fundido a los 60 ms (el calco va por ~85 %) con un hijo blanco de
+     z-index 2 y se mide el píxel: tiene que ser el calco a su opacidad, no el
+     blanco. Y `isolation` no tiene que romper ningún vidrio: uno de adentro
+     de la vista sigue esmerilando, y el scrim de un modal también. */
+  console.log('\n9-sexies. La vista nueva no se asoma por encima del calco');
+  await js(`(async () => {
+    const { Router } = await import('./js/router.js');
+    const { paint } = await import('./js/ui.js');
+    Router.define({
+      'prueba-z-a': { view: () => paint('<div style="height:8px"></div>') },
+      'prueba-z-b': { view: () => paint('<div id="pz-claro" style="position:relative;z-index:2;margin:40px;width:240px;height:160px;background:#fff"></div>') },
+      'prueba-vidrio': { view: () => paint('<div id="pv-rayas" style="position:relative;margin:40px;width:480px;height:160px;'
+        + 'background:repeating-linear-gradient(90deg,#fff 0 2px,#000 2px 4px)">'
+        + '<div id="pv-envol" style="position:absolute;left:0;top:0;width:240px;height:160px">'
+        + '<div style="position:absolute;inset:0;backdrop-filter:blur(6px)"></div></div></div>') },
+    });
+    return true;
+  })()`);
+  /* El calco se va solo a los 260 ms (el respaldo de exit(), que lo saca
+     aunque sus animaciones estén pausadas): la foto tiene que llegar antes.
+     Con la máquina cargada capturePage puede llegar tarde, ver el blanco y
+     dar una falla sin bug. Si cuando volvió la foto el calco ya no estaba, la
+     medición no vale y se repite (un calco que se fue no vuelve, así que si
+     sigue ahí, estaba en la foto). */
+  let zr = null; let zConCalco = null; let zValida = false; let zIntentos = 0;
+  while (!zValida && zIntentos < 3) {
+    zIntentos++;
+    await js(`(async () => { (await import('./js/router.js')).Router.go('prueba-z-a'); return true; })()`);
+    await sleep(700);
+    zr = await js(`(async () => {
+      const { Router } = await import('./js/router.js');
+      Router.go('prueba-z-b');
+      const calco = window.__zCalco = document.querySelector('.ox-main--saliente');
+      for (const a of calco?.getAnimations() ?? []) { a.pause(); a.currentTime = 60; }
+      await new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok)));
+      const c = document.getElementById('pz-claro').getBoundingClientRect();
+      return { op: calco?.isConnected ? +getComputedStyle(calco).opacity : null, x: c.left, y: c.top, w: c.width, h: c.height };
+    })()`);
+    zConCalco = await brillo({ x: zr.x + 20, y: zr.y + 20, width: zr.w - 40, height: zr.h - 40 });
+    zValida = zr.op != null && await js(`!!window.__zCalco?.isConnected`);
+  }
+  const zClaro = { x: zr.x + 20, y: zr.y + 20, width: zr.w - 40, height: zr.h - 40 };
+  const zFondo = await brillo({ x: zr.x + zr.w + 60, y: zClaro.y, width: 100, height: zClaro.height });
+  await sleep(500);
+  const zSolo = await brillo(zClaro);
+  await js(`delete window.__zCalco; true`);
+  // Cuánto del calco hay en el píxel: 1 = el fondo opaco del calco, 0 = el blanco de abajo.
+  const zCalco = (zSolo.media - zConCalco.media) / Math.max(1, zSolo.media - zFondo.media);
+  ok('un hijo de z-index 2 de la vista nueva queda DEBAJO del calco (el píxel es el calco a su opacidad)',
+    zValida && zr.op > 0.5 && zCalco >= zr.op - 0.03,
+    JSON.stringify({ calco: zr.op, enElPixel: +zCalco.toFixed(3), zConCalco, zFondo, zSolo, intentos: zIntentos,
+      ...(zValida ? {} : { invalida: 'en los 3 intentos el calco se fue antes de la foto: la máquina está muy cargada, no es el z-index' }) }));
+
+  // El vidrio: rayas de 2 px, la mitad izquierda debajo de un backdrop-filter.
+  const pv = await js(`(async () => {
+    const { Router } = await import('./js/router.js');
+    Router.go('prueba-vidrio');
+    await new Promise((r) => setTimeout(r, 700));
+    const r = document.getElementById('pv-rayas').getBoundingClientRect();
+    return { x: r.left, y: r.top, iso: getComputedStyle(document.getElementById('view')).isolation };
+  })()`);
+  const bajoVidrio = { x: pv.x + 40, y: pv.y + 40, width: 160, height: 80 };
+  const vidrio = { iso: pv.iso, bajo: await brillo(bajoVidrio), fuera: await brillo({ x: pv.x + 280, y: pv.y + 40, width: 160, height: 80 }) };
+  // Control: con una frontera de backdrop conocida (opacidad < 1 en el
+  // envoltorio transparente) el vidrio no tiene nada que esmerilar.
+  await js(`document.getElementById('pv-envol').style.opacity = '.999'; true`);
+  await sleep(200);
+  vidrio.roto = await brillo(bajoVidrio);
+  await js(`document.getElementById('pv-envol').style.opacity = ''; true`);
+  await js(`(async () => { const { Modal } = await import('./js/overlays.js'); Modal.show({ title: 'Vidrio', width: 200 }); return true; })()`);
+  await sleep(600);
+  const zonaScrim = { x: pv.x + 280, y: pv.y + 20, width: 120, height: 40 };
+  vidrio.scrim = await brillo(zonaScrim);
+  await js(`document.querySelector('.ox-scrim:not([data-state])').style.backdropFilter = 'none'; true`);
+  await sleep(150);
+  vidrio.scrimSinBlur = await brillo(zonaScrim);
+  await js(`(async () => { const { Modal } = await import('./js/overlays.js'); Modal.close(null); return true; })()`);
+  await sleep(400);
+  ok('con la vista aislada, un vidrio de adentro sigue esmerilando lo que tiene detrás',
+    vidrio.iso === 'isolate' && vidrio.bajo.desvio < 10 && vidrio.fuera.desvio > 100, JSON.stringify(vidrio));
+  ok('(y la medida distingue un vidrio roto: con una frontera de backdrop no esmerila)', vidrio.roto.desvio > 100, JSON.stringify(vidrio.roto));
+  ok('y el scrim de un modal sigue esmerilando la vista', vidrio.scrim.desvio < 10 && vidrio.scrimSinBlur.desvio > 30,
+    JSON.stringify({ scrim: vidrio.scrim, sinBlur: vidrio.scrimSinBlur }));
+
+  /* ── 9-septies. Repintar y navegar en la misma tarea (U7) ─────────────────
+     En Quire, abrir o cerrar un documento desde otra vista emite el aviso
+     (la vista actual se repinta con refresh()) y enseguida navega (go()).
+     Eran dos calcos en el mismo task, fundiéndose juntos: el del medio —el
+     estado intermedio, que nadie llegó a ver— asomaba hasta un 25 % (Páginas
+     con las hojas en blanco, shell-29). Mientras lo del host no se vio,
+     go() ya no calca: queda UNO, con lo de antes del refresh, y la vista
+     nueva va directo debajo.
+
+     Dos veces: con un refresh que no tarda nada y con uno que tarda 80 ms
+     después del paint() (una vista grande: Páginas con cientos de hojas). El
+     criterio era solo de reloj (60 ms desde el calco) y con 80 ms de trabajo
+     go() volvía a calcar: ['intermedio','antes']. En la misma tarea no se
+     pinta nada, así que se decide por cuadros. Y la vista vieja está
+     scrolleada: lo que el repintado dejaba pendiente para el final de la
+     tarea le ponía ese scroll a la vista NUEVA (nacía en 0 y saltaba a 700).
+     Del mismo pendiente: un countTo() de la vista nueva escribía el valor de
+     una, como si fuera la misma vista repintada, en vez de contar. */
+  console.log('\n9-septies. Repintar y navegar en la misma tarea');
+  const doble = await js(`(async () => {
+    const { Router } = await import('./js/router.js');
+    const { paint } = await import('./js/ui.js');
+    const { countTo } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const alto = '<div style="height:3000px"></div>';
+    const out = {};
+    for (const costo of [0, 80]) {
+      let estado = 'antes';
+      Router.define({
+        ['prueba-doble-a' + costo]: { view: () => {
+          paint('<div class="ox-scroll ox-grow" id="pd-a"><p>' + estado + '</p>' + alto + '</div>');
+          if (estado !== 'intermedio') return;
+          const t0 = performance.now();
+          while (performance.now() - t0 < costo) { /* lo que tarda en armarse y cablearse */ }
+        } },
+        ['prueba-doble-b' + costo]: { view: () => {
+          paint('<div class="ox-scroll ox-grow" id="pd-b"><p>final</p><span id="pd-n"></span>' + alto + '</div>');
+          countTo(document.getElementById('pd-n'), 500);
+        } },
+      });
+      Router.go('prueba-doble-a' + costo);
+      await espera(600);
+      document.getElementById('pd-a').scrollTop = 700;
+      await espera(60);
+      estado = 'intermedio';
+      Router.refresh();
+      Router.go('prueba-doble-b' + costo);
+      const view = document.getElementById('view');
+      const r = {
+        calcos: [...document.querySelectorAll('.ox-main--saliente')].map((c) => c.textContent.trim()),
+        vista: view.querySelector('p')?.textContent.trim(),
+        quieta: !view.classList.contains('ox-view'),
+        cuentaAlNacer: document.getElementById('pd-n').textContent,
+      };
+      await espera(50);
+      r.scroll = document.getElementById('pd-b').scrollTop;
+      await espera(750);
+      r.quedan = document.querySelectorAll('.ox-main--saliente').length;
+      r.cuentaAlFinal = document.getElementById('pd-n').textContent;
+      out[costo] = r;
+    }
+    Router.go('inicio');
+    await espera(500);
+    return out;
+  })()`);
+  for (const [costo, d] of Object.entries(doble)) {
+    const cual = costo === '0' ? '' : ` (con ${costo} ms de trabajo después del paint)`;
+    ok(`refresh() y go() seguidos dejan UN solo calco, con lo de antes del refresh${cual}`,
+      d.calcos.length === 1 && d.calcos[0] === 'antes', JSON.stringify(d));
+    ok(`y la vista nueva va quieta debajo, sin el estado intermedio en ningún lado${cual}`,
+      d.vista === 'final' && d.quieta && d.quedan === 0, JSON.stringify(d));
+    ok(`y no hereda el scroll de la vista vieja${cual}`, d.scroll === 0, JSON.stringify(d));
+    ok(`y sus contadores cuentan (no escriben el valor de una, como al repintar)${cual}`,
+      d.cuentaAlNacer !== '500' && d.cuentaAlFinal === '500', JSON.stringify(d));
+  }
+
   /* Tooltip entre vecinos: el pointerout del primero llega ANTES que el
      pointerover del segundo y ya lo cerró, así que mirar si hay uno abierto no
      alcanza para saber que venías de otro. Salió en Moji: pasar de un botón al
@@ -1529,6 +2256,105 @@ app.whenReady().then(async () => {
   ok('el primer tooltip espera la demora larga', tips.frio >= 380 && tips.frio < 1000, JSON.stringify(tips));
   ok('el del vecino entra con la espera corta', tips.vecino < 250, JSON.stringify(tips));
   ok('si el ancla se fue durante la espera, no aparece', !tips.huerfano, JSON.stringify(tips));
+
+  /* El tooltip también con el teclado (U12). Solo con el pointerover, el que
+     recorre la ventana con Tab no veía ninguno, y ahí viven los atajos: Quire
+     tenía una docena que la interfaz nunca decía (ux-17). Va por la tecla de
+     verdad (sendInputEvent), que es lo que hace al foco :focus-visible. Y un
+     clic no lo muestra por el foco: con el mouse ya está el hover. */
+  console.log('\n9-octies. El tooltip con el foco del teclado');
+  win.focus();
+  win.webContents.focus();
+  await sleep(150);
+  await js(`(() => {
+    const caja = document.createElement('div');
+    caja.id = 'tk-caja';
+    caja.style.cssText = 'position:fixed;left:320px;top:320px;display:flex;gap:8px;z-index:50';
+    caja.innerHTML = '<button class="ox-btn ox-btn--secondary" id="tk-a">antes</button>'
+      + '<button class="ox-iconbtn" id="tk-b" data-tip="Guardar" data-tip-key="Ctrl S"></button>';
+    document.body.append(caja);
+    document.getElementById('tk-a').focus();
+    return true;
+  })()`);
+  const tipVisible = () => js(`(() => { const t = [...document.querySelectorAll('.ox-tooltip')].find((x) => !x.dataset.state);
+    return { foco: document.activeElement?.id || null, tip: t ? t.textContent : null }; })()`);
+  tecla('Tab');
+  await sleep(700);
+  const conTab = await tipVisible();
+  ok('con Tab, el foco de teclado muestra el tooltip con su atajo', conTab.foco === 'tk-b' && conTab.tip === 'GuardarCtrl S', JSON.stringify(conTab));
+  tecla('Tab', ['shift']);
+  await sleep(400);
+  const alIrse = await tipVisible();
+  ok('y se va cuando se va el foco', alIrse.foco === 'tk-a' && alIrse.tip === null, JSON.stringify(alIrse));
+  const tkB = await js(`(() => { const r = document.getElementById('tk-b').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await puntero('mouseMove', tkB.x, tkB.y);
+  await puntero('mouseDown', tkB.x, tkB.y, { button: 'left', clickCount: 1 });
+  await puntero('mouseUp', tkB.x, tkB.y, { button: 'left', clickCount: 1 });
+  await puntero('mouseMove', 4, H - 40);
+  await sleep(700);
+  const conClic = await tipVisible();
+  ok('un clic de mouse no lo deja por el foco', conClic.foco === 'tk-b' && conClic.tip === null, JSON.stringify(conClic));
+
+  /* Y el foco que pone un script después de una tecla tampoco: navegar es
+     Tab. Con «cualquier tecla» contaba como teclado: un clic real abre un
+     modal, se tipea, Enter (o Escape), y Modal.close le devuelve el foco al
+     botón que lo abrió —queda :focus-visible—; a los 420 ms aparecía su
+     tooltip sin que nadie hubiera tabulado. En Quire, el tacho de «Borrar
+     toda la tinta» al salir de su confirm. Lo mismo un atajo que enfoca un
+     campo con data-tip (Ctrl+F): el tooltip encima de lo que se va a tipear.
+     Y el que tabula hasta un campo y escribe enseguida no lo ve salir. */
+  const escribir = (s) => {
+    for (const ch of s) {
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: ch });
+      win.webContents.sendInputEvent({ type: 'char', keyCode: ch });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: ch });
+    }
+  };
+  await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const caja = document.getElementById('tk-caja');
+    caja.insertAdjacentHTML('beforeend', '<button class="ox-iconbtn" id="tk-abre" data-tip="Renombrar" data-tip-key="F2"></button>'
+      + '<input class="ox-input" id="tk-buscar" style="width:140px" data-tip="Buscar" data-tip-key="Ctrl F">');
+    document.getElementById('tk-abre').addEventListener('click', () => {
+      Modal.show({ title: 'Renombrar', body: '<input class="ox-input" id="tk-nombre" value="viejo">',
+        actions: [{ label: 'Cancelar', value: null }, { label: 'Guardar', value: 'g', variant: 'primary' }] });
+    });
+    window.__tkAtajo = (e) => { if (e.ctrlKey && e.key.toLowerCase() === 'f') { e.preventDefault(); document.getElementById('tk-buscar').focus(); } };
+    document.addEventListener('keydown', window.__tkAtajo);
+    document.activeElement?.blur();
+    return true;
+  })()`);
+  const tkAbre = await js(`(() => { const r = document.getElementById('tk-abre').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  const alCerrar = {};
+  for (const modo of ['Enter', 'Escape']) {
+    await puntero('mouseMove', tkAbre.x, tkAbre.y);
+    await puntero('mouseDown', tkAbre.x, tkAbre.y, { button: 'left', clickCount: 1 });
+    await puntero('mouseUp', tkAbre.x, tkAbre.y, { button: 'left', clickCount: 1 });
+    await puntero('mouseMove', 4, H - 40);   // el mouse se va: el hover no cuenta
+    await sleep(350);
+    escribir('nuevo');
+    await sleep(100);
+    if (modo === 'Enter') enter(); else escape();
+    await sleep(800);
+    alCerrar[modo] = await tipVisible();
+    await js(`document.activeElement?.blur(); true`);
+    await sleep(200);
+  }
+  ok('cerrar un modal con Enter no deja el tooltip del botón que lo abrió',
+    alCerrar.Enter.foco === 'tk-abre' && alCerrar.Enter.tip === null, JSON.stringify(alCerrar.Enter));
+  ok('ni con Escape', alCerrar.Escape.foco === 'tk-abre' && alCerrar.Escape.tip === null, JSON.stringify(alCerrar.Escape));
+  tecla('F', ['control']);
+  await sleep(700);
+  const conAtajo = await tipVisible();
+  ok('un atajo que enfoca un campo con data-tip no le pone el tooltip encima', conAtajo.foco === 'tk-buscar' && conAtajo.tip === null, JSON.stringify(conAtajo));
+  await js(`document.getElementById('tk-b').focus(); true`);
+  tecla('Tab');
+  tecla('Tab');
+  escribir('a');
+  await sleep(700);
+  const tabYEscribe = await tipVisible();
+  ok('tabular hasta un campo y escribir enseguida no lo hace salir encima', tabYEscribe.foco === 'tk-buscar' && tabYEscribe.tip === null, JSON.stringify(tabYEscribe));
+  await js(`document.removeEventListener('keydown', window.__tkAtajo); delete window.__tkAtajo; document.getElementById('tk-caja')?.remove(); true`);
 
   // El test no puede dejar basura en los datos.
   if (id) await js(`window.onyx.col('items').remove(${JSON.stringify(id)})`);

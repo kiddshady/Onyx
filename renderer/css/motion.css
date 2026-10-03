@@ -184,6 +184,12 @@
   }
 }
 
+/* Asentado (asentarPlegables, en motion.js): al repintar la misma vista, lo
+   que nace visible ya estaba a la vista y no se vuelve a desplegar desde 0
+   debajo del fundido. Tres clases para ganarle a la doble de arriba. */
+.ox-plegable.ox-plegable.is-placing,
+.ox-plegable--ancho.ox-plegable--ancho.is-placing { transition: none; }
+
 /* Plegado de ancho, para una fila. Un ítem de ancho 0 igual cuenta un hueco
    del `gap` de su fila, y sin descontarlo los de al lado saltarían justo
    cuando pasa a `display: none`: por eso el margen negativo, que es
@@ -237,6 +243,16 @@
    La salida va in-out: con ease-in la opacidad caería de golpe al final. Mismo
    lugar, no al lado: si no, la nueva saltaría al terminar. */
 .ox-body > .ox-main { grid-column: 2; grid-row: 1; }
+/* Cada vista es su propio contexto de apilamiento. Sin esto, un hijo de la
+   vista NUEVA con z-index 2 o más —un panel absoluto, el `th` sticky de una
+   tabla que no llega a scrollear— competía en la raíz con el calco (z-index
+   1) y le ganaba: se veía entero desde el primer cuadro mientras el resto se
+   fundía. Pasó en Quire con la columna de miniaturas del lector (css-01).
+   Con `isolation` los z-index de adentro quedan adentro y el calco tapa la
+   vista entera. No es bloque contenedor (un `fixed` de adentro sigue contra
+   la ventana) ni frontera de backdrop: un vidrio de la vista sigue
+   esmerilando lo que tiene detrás, y el scrim, la vista. Lo mide el humo. */
+.ox-body > .ox-main { isolation: isolate; }
 /* Apagada con una clase, declarada antes que cualquier salida: si se apagara
    con style.animation, el inline le ganaría a la regla que la hace irse. */
 .ox-view.is-settled { animation: none; }

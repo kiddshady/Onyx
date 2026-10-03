@@ -11,7 +11,7 @@
 import { Icons } from './icons.js';
 import { Toast, Menu, Modal } from './overlays.js';
 import { bindSwitcher, bindStepper, swap } from './motion.js';
-import { mark, status, copy, colorToken, path } from './ui.js';
+import { mark, status, copy, colorToken, path, esc } from './ui.js';
 
 /* ── Las tres perillas ───────────────────────────────────────────────────────
    Los presets del acento. El nombre importa: son las cinco temperaturas que
@@ -173,6 +173,7 @@ export function designHTML() {
           <button class="ox-btn ox-btn--danger-solid ox-flashable">Borrar todo</button>
           <button class="ox-btn ox-btn--secondary" disabled>Deshabilitado</button>
           <button class="ox-iconbtn" data-tip="Botón de ícono"><i data-icon="settings"></i></button>
+          <button class="ox-iconbtn" disabled><i data-icon="trash"></i></button>
           <button class="ox-btn ox-btn--sm ox-btn--secondary">Chico</button>
           <button class="ox-btn ox-btn--lg ox-btn--secondary">Grande</button>
         </div>`)}
@@ -436,12 +437,28 @@ export function wireDesign(rootEl) {
       .map((p) => p.replace('--ox-mono-', '')),
   )].sort() : [];
 
+  /* Los botones se arman una vez y después solo cambian de variante. Antes se
+     rehacían con innerHTML en cada click: el elegido pasaba a primario de un
+     cuadro al otro (era un nodo nuevo, sin de dónde transicionar) y el
+     destello del click se iba con el nodo viejo. La vitrina es lo que se
+     copia: tiene que mostrar el patrón bueno. */
   const pintarMono = () => {
     if (!monoHost) return;
-    const hoy = getComputedStyle(root).getPropertyValue('--ox-mono').trim();
-    monoHost.innerHTML = monoIds.map((id) => `
-      <button class="ox-btn ox-btn--${hoy.includes(`--ox-mono-${id}`) ? 'primary' : 'secondary'} ox-flashable"
-              data-mono="${id}" style="font-family:var(--ox-mono-${id})">${id}</button>`).join('');
+    if (!monoHost.children.length) {
+      monoHost.innerHTML = monoIds.map((id) => `
+        <button class="ox-btn ox-flashable" data-mono="${id}" style="font-family:var(--ox-mono-${id})">${id}</button>`).join('');
+    }
+    /* getComputedStyle RESUELVE el var() de una propiedad propia: devuelve la
+       familia, no `var(--ox-mono-roboto)`. Se compara la familia de cada
+       token con la que quedó. Antes se buscaba el nombre del token adentro
+       del valor, no aparecía nunca, y ningún botón salía elegido. */
+    const cs = getComputedStyle(root);
+    const hoy = cs.getPropertyValue('--ox-mono').trim();
+    for (const b of monoHost.querySelectorAll('[data-mono]')) {
+      const es = cs.getPropertyValue(`--ox-mono-${b.dataset.mono}`).trim() === hoy;
+      b.classList.toggle('ox-btn--primary', es);
+      b.classList.toggle('ox-btn--secondary', !es);
+    }
   };
   pintarMono();
 
@@ -499,13 +516,26 @@ export function wireDesign(rootEl) {
   const stepper = rootEl.querySelector('#demo-stepper');
   if (stepper) bindStepper(stepper);
 
+  let modelo = rootEl.querySelector('#demo-select .ox-select__value')?.textContent.trim();
   rootEl.querySelector('#demo-select')?.addEventListener('click', (e) => {
     const btn = e.currentTarget;
     const val = btn.querySelector('.ox-select__value');
-    Menu.show(btn, ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4.5', 'minimax-m3', 'qwen3.5-9b'].map((m) => ({
+    Menu.show(btn, ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4.5', 'minimax-m3', 'qwen3.5-9b'].map((m, i) => ({
       label: m,
-      selected: val.textContent === m,
-      onSelect: () => { val.textContent = m; },
+      // La aclaración atenuada: como «del sistema» en una impresora.
+      hint: i === 0 ? 'por defecto' : '',
+      selected: modelo === m,
+      /* Un valor por otro: relevo en el mismo lugar, no un textContent que
+         cambia de un cuadro al otro. Se recuerda en `modelo` porque durante
+         el relevo el textContent junta lo que se va con lo que llega. Elegir
+         el que ya estaba no hace nada: swap() recuerda recién después de su
+         primer uso (el valor de arranque lo escribió el HTML), y la primera
+         vez relevaba la misma palabra por sí misma. */
+      onSelect: () => {
+        if (m === modelo) return;
+        modelo = m;
+        swap(val, esc(m), { relevo: true });
+      },
     })));
   });
 
@@ -518,7 +548,7 @@ export function wireDesign(rootEl) {
   rootEl.querySelector('#demo-modal')?.addEventListener('click', () => {
     Modal.show({
       title: 'Nuevo elemento',
-      sub: 'El modal atrapa el foco, cierra con Escape y devuelve una promesa con el valor del botón que apretaste.',
+      sub: 'Arranca en el primer campo, Enter en un renglón aplica, atrapa el foco, cierra con Escape y devuelve una promesa con el valor del botón que apretaste.',
       body: `
         <div class="ox-col" style="gap:16px">
           <div class="ox-field">
@@ -532,7 +562,7 @@ export function wireDesign(rootEl) {
         </div>`,
       actions: [
         { label: 'Cancelar', value: null },
-        { label: 'Crear', value: true, variant: 'primary', autofocus: true },
+        { label: 'Crear', value: true, variant: 'primary' },
       ],
     }).then((v) => v && Toast.show({ title: 'Devolvió true', text: 'Esto es la vitrina: no se creó nada.', icon: 'info' }));
   });

@@ -97,8 +97,25 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
     return;
   }
 
+  // Lo que todavía estaba ENTRANDO no se da por terminado. finish() lo llevaba
+  // a opaco y el calco lo esfumaba desde ahí: dos relevos seguidos («Buscando…»
+  // y el resultado a los 30 ms) mostraban entero, un instante, un estado que
+  // nunca se había visto. Lo que no había asomado se va sin calco; lo que iba a
+  // mitad de camino sale desde la opacidad que tenía. Salió de Quire (el cartel
+  // de actualización ya lo hacía así).
+  const aMitad = new Map();
+  for (const n of viejos) {
+    if (n.nodeType !== 1 || !n.classList.contains('ox-swap-in') || n.classList.contains('is-settled')) continue;
+    const op = +getComputedStyle(n).opacity;
+    if (op < 0.02) n.remove(); else aMitad.set(n, op);
+  }
+  const vivos = viejos.filter((n) => n.isConnected);
+  const quedan = vivos.some((n) => n.nodeType === 1 || n.textContent.trim());
+  // Si algo de antes se sigue yendo, lo nuevo igual espera su turno.
+  const yendose = !!el.querySelector(':scope > .ox-swap-out');
+
   if (antes && !despues) {
-    for (let n of viejos) {
+    for (let n of vivos) {
       // Un texto suelto no puede salir animado: se borraba de golpe. Va en un
       // <span> y sale como los demás.
       if (n.nodeType === 3 && n.textContent.trim()) {
@@ -108,6 +125,9 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
         n = s;
       }
       if (n.nodeType !== 1) { n.remove(); continue; }
+      // La salida no tiene `from`: parte de la opacidad de abajo, que sin esto
+      // sería 1 aunque lo estuviera agarrando a mitad de su entrada.
+      if (aMitad.has(n)) n.style.opacity = String(aMitad.get(n));
       n.classList.remove('ox-swap-in', 'is-after');
       n.classList.add('ox-swap-out');
       n.inert = true;
@@ -118,13 +138,13 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
 
   let calco = null;
   let caja = null;
-  if (antes) {
+  if (quedan) {
     caja = cajaDe(el);
     calco = document.createElement('div');
     calco.className = `ox-swap-out ox-swap-out--over${fundido ? ' ox-swap-out--fundido' : ''}`;
     calco.inert = true;
     calco.setAttribute('aria-hidden', 'true');
-    calco.append(...viejos);
+    calco.append(...vivos);
     for (const x of calco.querySelectorAll('[id]')) x.removeAttribute('id');
     if (getComputedStyle(el).position === 'static') el.classList.add('ox-swap-host');
     // El fondo, del primer opaco hacia arriba: el calco no lleva la clase de
@@ -132,10 +152,15 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
     if (fundido) calco.style.background = fondoDetras(el);
     el.prepend(calco);
     // Mover un nodo le reinicia las animaciones CSS: lo que tenía su propia
-    // entrada volvería a entrar desde cero adentro del calco que se va.
+    // entrada volvería a entrar desde cero adentro del calco que se va. Se da
+    // por terminada, salvo la de lo que venía entrando: esa se cancela (una
+    // de CSS cancelada no vuelve mientras no cambie su nombre) y queda en la
+    // opacidad en que se la agarró.
     for (const a of calco.getAnimations({ subtree: true })) {
-      if (a.effect?.getTiming().iterations !== Infinity) a.finish();
+      if (aMitad.has(a.effect?.target)) a.cancel();
+      else if (a.effect?.getTiming().iterations !== Infinity) a.finish();
     }
+    for (const [n, op] of aMitad) n.style.opacity = String(op);
     exit(calco, { fallback: 220 });
   }
 
@@ -150,7 +175,7 @@ export function swap(el, html, { relevo = false, fundido = false } = {}) {
     s.append(n);
   }
   // Con fundido lo nuevo no anima: está entero debajo y el calco lo destapa.
-  if (!(fundido && antes)) for (const n of tpl.content.children) entrar(n, antes);
+  if (!(fundido && calco)) for (const n of tpl.content.children) entrar(n, quedan || yendose);
   el.append(tpl.content);
 
   // El calco, clavado en la caja vieja: medida ya con lo nuevo adentro.
@@ -374,8 +399,11 @@ export function bindSwitcher(root, onChange) {
  * El calco va sin ids (nadie tiene que encontrar un #campo que se está yendo),
  * inerte, y conserva su scroll. Si la vista vieja todavía estaba entrando, el
  * calco arranca desde la opacidad y el corrimiento en que la agarró. Si ya
- * había otro calco yéndose, el nuevo va encima de ese: es el estado más
- * reciente.
+ * había otro calco yéndose, el nuevo va DEBAJO de ese, pegado a la vista: así
+ * el cuadro siguiente es la misma composición que el anterior (lo que se iba
+ * sigue a su opacidad, encima de lo que acaba de calcarse). Encima de todos,
+ * el calco nuevo —opaco— tapaba de golpe lo que se iba: medido, lo que se veía
+ * al 79 % pasaba a 0 % de un cuadro al otro. Quire lo tenía así.
  */
 export function calcar(host) {
   if (!host || !host.firstChild || !host.parentElement) return null;
@@ -394,9 +422,7 @@ export function calcar(host) {
     .map((el) => [el, el.scrollTop, el.scrollLeft]);
   calco.append(...host.childNodes);
   for (const el of calco.querySelectorAll('[id]')) el.removeAttribute('id');
-  let ancla = host;
-  while (ancla.nextElementSibling?.classList.contains('ox-main--saliente')) ancla = ancla.nextElementSibling;
-  ancla.after(calco);
+  host.after(calco);
   for (const [el, top, left] of scrolls) { el.scrollTop = top; el.scrollLeft = left; }
 
   // Mover un nodo en el DOM le REINICIA las animaciones CSS. Lo que tenía su
@@ -411,7 +437,34 @@ export function calcar(host) {
 
   exit(calco, { fallback: 260 });
   host.__calcadoEn = performance.now();
+  // Hasta el cuadro siguiente, lo que se ponga en host no se pintó nunca (ver
+  // recienCalcado). El tope es por si la ventana no está pintando.
+  const marca = host.__sinPintar = {};
+  const pintado = () => { if (host.__sinPintar === marca) host.__sinPintar = null; };
+  requestAnimationFrame(pintado);
+  setTimeout(pintado, 100);
   return calco;
+}
+
+/**
+ * Si lo que hay en `host` es un estado intermedio que el calco —todavía casi
+ * opaco— no dejó ver: otro calco encima lo mostraría. Lo miran repintar() y
+ * el router: el que llega en ese rato va directo debajo del calco que ya está.
+ *
+ * Es «todavía no hubo un cuadro desde el calco» o «hace menos de 60 ms». Con
+ * el reloj solo, un refresh() que tardaba (un innerHTML grande, armar
+ * miniaturas, otros oyentes del aviso) se pasaba de los 60 ms antes del go()
+ * de la MISMA tarea, que volvía a calcar: dos calcos, y el intermedio
+ * asomando, justo con los documentos grandes (en la sonda, 80 ms de trabajo).
+ * En la misma tarea no se pinta nada, así que eso se decide por cuadros. Con
+ * la ventana oculta no hay cuadros y la marca dura hasta el tope (que en
+ * segundo plano Chromium estira a un segundo): ahí vale solo el reloj, o un
+ * segundo refresco con la ventana minimizada se quedaría sin foto del lugar.
+ */
+export function recienCalcado(host) {
+  if (!host) return false;
+  if (host.__sinPintar && document.visibilityState === 'visible') return true;
+  return performance.now() - (host.__calcadoEn ?? -Infinity) < 60;
 }
 
 const INDICADORES = [
@@ -419,8 +472,11 @@ const INDICADORES = [
   { sel: '.ox-tabs', pseudo: '::after', x: '--tab-x', w: '--tab-w' },
 ];
 
-/** Mientras se asienta un repintado, countTo() no cuenta: escribe el valor. */
-let asentando = 0;
+/** Mientras se asienta un repintado, countTo() no cuenta: escribe el valor.
+    Cada uno con la pintada que asienta: si go() ya puso otra vista encima
+    (ver asentar), la nueva cuenta como siempre. */
+const asentando = new Set();
+const asentandoAlgo = () => [...asentando].some((a) => a.root.__pinta === a.pinta);
 
 /** El lugar de una vista, antes de repintarla. Se reconoce por ids. */
 function fotografiar(root) {
@@ -469,8 +525,7 @@ function devolverAlPintar(root, f) {
  * —encabezado sin cuerpo— y la pantalla bajaba de brillo (Pharos).
  */
 export function repintar(root, poner) {
-  const recien = performance.now() - (root.__calcadoEn ?? -Infinity) < 60;
-  const f = !recien && root.firstChild ? fotografiar(root) : null;
+  const f = !recienCalcado(root) && root.firstChild ? fotografiar(root) : null;
   const calco = f ? calcar(root) : null;
   poner();
   if (!calco) return false;
@@ -481,21 +536,40 @@ export function repintar(root, poner) {
 
 /* Lo nuevo queda quieto debajo del calco: sus entradas se dan por terminadas
    (lo que gira para siempre sigue, y las transiciones también: una cápsula
-   que viene de donde estaba tiene que llegar viajando). Se hace dos veces:
-   ahora, con lo que trajo el HTML, y al terminar la tarea, con lo que la vista
-   haya arrancado al cablearse. Recién ahí se devuelven el scroll y el foco,
-   que dependen del alto final. */
+   que viene de donde estaba tiene que llegar viajando). La excepción son los
+   plegables: un .ox-plegable que nace visible se despliega desde 0 con una
+   TRANSICIÓN (@starting-style), así que también hay que asentarlo, o crece
+   debajo del fundido (asentarPlegables, abajo). Se hace dos veces: ahora,
+   con lo que trajo el HTML, y al terminar la tarea, con lo que la vista haya
+   arrancado al cablearse. Recién ahí se devuelven el scroll y el foco, que
+   dependen del alto final. */
 function asentar(root, f) {
   const terminar = () => {
+    asentarPlegables(root);
     for (const a of root.getAnimations({ subtree: true })) {
-      if (a.effect?.target === root || a instanceof CSSTransition) continue;
+      if (a.effect?.target === root) continue;
+      if (a instanceof CSSTransition) {
+        // El que ya había arrancado (algo forzó el estilo antes, como colocar
+        // una cápsula), se termina. El de un pseudo no es un plegable.
+        if (!a.effect?.pseudoElement && a.effect?.target?.matches?.(PLEGABLE)) a.finish();
+        continue;
+      }
       if (a.effect?.getTiming().iterations !== Infinity) a.finish();
     }
   };
-  asentando++;
+  /* `__pinta` cuenta las vistas que pasaron por root, y go() lo sube. Un
+     refresh() y un go() en la misma tarea (shell-29) dejaban este pendiente
+     corriendo sobre la vista NUEVA: le ponía a sus .ox-scroll el scroll de
+     la vieja (en la sonda, B nacía en 0 y saltaba a 700), podía enfocar algo
+     suyo por un id que coincidiera, le daba por terminadas sus entradas y sus
+     countTo() escribían el valor en vez de contar. Pasaba también antes, con
+     el calco doble. Si la vista ya es otra, no se toca nada. */
+  const yo = { root, pinta: root.__pinta };
+  asentando.add(yo);
   terminar();
   queueMicrotask(() => {
-    asentando--;
+    asentando.delete(yo);
+    if (root.__pinta !== yo.pinta) return;
     terminar();
     const scrolls = root.querySelectorAll('.ox-scroll');
     f.scrolls.forEach((top, i) => { if (scrolls[i] && top) scrolls[i].scrollTop = top; });
@@ -508,6 +582,32 @@ function asentar(root, f) {
       el?.focus({ preventScroll: true });
     }
   });
+}
+
+const PLEGABLE = '.ox-plegable, .ox-plegable--ancho';
+
+/**
+ * Pone en su lugar, sin desplegarse, los plegables visibles de `root`: les
+ * apaga la transición (`.is-placing`), fuerza el estilo y se la devuelve.
+ * Si todavía no tenían estilo, nacen ya abiertos (@starting-style no tiene
+ * con qué transicionar); si ya venían desplegándose, sacarles la transición
+ * los corta en su alto final. Uno que se prende DESPUÉS con `hidden = false`
+ * se despliega como siempre.
+ *
+ * Lo llama solo repintar(). Una vista que se monta navegando y no quiere que
+ * los suyos crezcan debajo del calco (la barra de tinta de Quire, que nace
+ * visible si la tinta estaba prendida) lo llama después de pintar. Es lo que
+ * hace colocar() con las cápsulas, para los plegables. De css-13 (Quire).
+ */
+export function asentarPlegables(root) {
+  if (!root) return;
+  const sel = '.ox-plegable:not([hidden]), .ox-plegable--ancho:not([hidden])';
+  const todos = [...root.querySelectorAll(sel)];
+  if (root.matches?.(sel)) todos.unshift(root);
+  if (!todos.length) return;
+  for (const el of todos) el.classList.add('is-placing');
+  for (const el of todos) void getComputedStyle(el).height;
+  for (const el of todos) el.classList.remove('is-placing');
 }
 
 /* ── Campo numérico ─────────────────────────────────────────────────────────
@@ -556,6 +656,11 @@ export function bindStepper(root, onChange) {
   };
 
   function mover(dir) {
+    /* Si el input ya se fue del documento, el listener del paso anterior repintó
+       el panel entero y este quedó huérfano: su número no lo ve nadie, pero cada
+       paso sigue despachando 'change' y volviendo a repintar. Acá se corta. */
+    if (!input.isConnected) return false;
+
     const antes = leer();
     const v = acotar(antes + dir * num('step', 1));
     if (v === antes) { sync(); return false; }
@@ -569,7 +674,12 @@ export function bindStepper(root, onChange) {
   }
 
   let timer = null;
-  const frenar = () => { clearTimeout(timer); timer = null; };
+  function frenar() {
+    clearTimeout(timer);
+    timer = null;
+    window.removeEventListener('pointerup', frenar);
+    window.removeEventListener('pointercancel', frenar);
+  }
 
   function arrancar(dir, desde) {
     const transcurrido = Date.now() - desde;
@@ -581,22 +691,38 @@ export function bindStepper(root, onChange) {
     const btn = e.target.closest('[data-step]');
     if (!btn || btn.disabled) return;
     e.preventDefault();                 // que el campo no pierda el foco
+    frenar();                           // nunca dos repeticiones sobre el mismo campo
     const dir = btn.dataset.step === 'up' ? 1 : -1;
+
+    /* Soltar tiene que frenar SIEMPRE, y el pointerup no siempre llega hasta acá:
+       si el primer paso hace que quien escucha repinte, este root sale del
+       documento y el evento cae sobre los nodos nuevos. window sí lo ve. Se
+       enganchan al apretar y los suelta frenar(), así no se acumulan. */
+    window.addEventListener('pointerup', frenar);
+    window.addEventListener('pointercancel', frenar);
+
     mover(dir);
     const desde = Date.now();
     timer = setTimeout(() => arrancar(dir, desde), ESPERA);
-    /* La captura del puntero es lo que hace que soltar CUENTE aunque el dedo se
-       haya ido del botón. Sin esto, arrastrar afuera deja el contador corriendo
-       para siempre. */
-    btn.setPointerCapture?.(e.pointerId);
+    /* La captura del puntero mantiene el aguante aunque el dedo se salga del
+       botón. Si el paso de recién ya se llevó puesto el botón, tirar acá no
+       importa: el freno de verdad está en window. */
+    try { btn.setPointerCapture(e.pointerId); } catch { /* ya no está en el DOM */ }
   });
 
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) {
-    root.addEventListener(ev, frenar);
-  }
-
   input.addEventListener('input', sync);
+
+  /* La primera vez, sin transición: una flecha que NACE en el tope ya está
+     apagada, no se apaga. Con la opacidad en la transición (U4), si algo
+     había forzado el estilo entre el paint() y este cableado, la flecha de
+     abajo de un campo en 0 se fundía en cada montaje: 100 100 76 58 44 35 30
+     27 25, al navegar y al repintar (debajo del fundido, que asentar() no
+     corta porque solo termina los plegables). Lo de colocar() con las
+     cápsulas: una clase que la apaga, forzar el estilo, sacarla. */
+  root.classList.add('is-placing');
   sync();
+  for (const b of root.querySelectorAll('[data-step]')) void getComputedStyle(b).opacity;
+  root.classList.remove('is-placing');
   return sync;
 }
 
@@ -613,7 +739,7 @@ export function countTo(el, to, { from = 0, duration = 700, format = (n) => n } 
   // Repintando la misma vista, el número ya estaba en pantalla: volver a
   // contar desde 0 lo haría entrar de nuevo. Va el valor; si cambió, el
   // fundido del repintado lo muestra.
-  if (asentando) { el.textContent = format(Math.round(to)); return; }
+  if (asentandoAlgo()) { el.textContent = format(Math.round(to)); return; }
   const start = performance.now();
   const ease = (t) => 1 - Math.pow(1 - t, 3);
   const tick = (now) => {
@@ -642,6 +768,7 @@ export function tick(el) {
      valor(el, html)             algo que cambia MUY seguido (las flechas de un
                                  stepper apretadas): siempre en su lugar
      deslizarAlto(el, cambio)    la caja va de su alto al nuevo, no salta
+     deslizarAncho(el, cambio)   lo mismo a lo ancho (un ítem de una fila)
      reconcile(box, items)       una lista que se pone al día por clave */
 
 /* Los tokens de motion.css, para lo que se anima desde JS. */
@@ -739,6 +866,35 @@ export function deslizarAlto(el, cambio) {
   el.__glide?.cancel();
   cambio();
   glideAlto(el, h0);
+}
+
+/* Lo mismo a lo ancho: la caja va del ancho `w0` al que tiene ahora. Lo de
+   adentro no se acomoda en dos renglones mientras viaja: queda en uno y lo
+   que sobra se recorta. */
+function glideAncho(el, w0) {
+  const w1 = el.getBoundingClientRect().width;
+  if (Math.abs(w1 - w0) < 1 || reducido() || typeof el.animate !== 'function') return;
+  el.__glideAncho = el.animate([
+    { width: `${w0}px`, overflow: 'clip', whiteSpace: 'nowrap' },
+    { width: `${w1}px`, overflow: 'clip', whiteSpace: 'nowrap' },
+  ], { duration: T.size, easing: EASE_BOTH });
+}
+
+/**
+ * deslizarAlto, a lo ancho: hace `cambio()` y el ancho de `el` va del que
+ * tenía al nuevo. Para un ítem de una fila que cambia de texto (la
+ * statusbar): sin esto cambiaba de ancho en un cuadro y todo lo que tenía a
+ * la derecha saltaba. En Quire, el nombre del documento al cambiar de
+ * pestaña, la impresora y el aviso de actualización (shell-22, shell-23).
+ * Con un relevo adentro (swap con `relevo`) va solo: el calco conserva la
+ * caja vieja y no cuenta para el ancho nuevo.
+ */
+export function deslizarAncho(el, cambio) {
+  if (!el) { cambio(); return; }
+  const w0 = el.getBoundingClientRect().width;
+  el.__glideAncho?.cancel();
+  cambio();
+  glideAncho(el, w0);
 }
 
 /* ── Listas que se ponen al día ─────────────────────────────────────────────

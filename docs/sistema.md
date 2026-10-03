@@ -21,8 +21,8 @@ componente escribe un valor crudo.
 | `--ox-bg` | Base de la ventana |
 | `--ox-s1` | Rail, statusbar |
 | `--ox-s2` | Card, panel, fila elevada |
-| `--ox-s3` | Menú, modal, popover, tooltip |
-| `--ox-s4` | Lo más alto: lo que flota sobre todo |
+| `--ox-s3` | Menú, modal, popover |
+| `--ox-s4` | Tooltip, lo más alto: lo que flota sobre todo |
 
 La croma crece con la luminancia: un plano claro necesita más temperatura que
 uno oscuro para no verse lavado.
@@ -262,6 +262,21 @@ contenedor que scrollea, se van de pantalla con el contenido.
 `--ghost` · `--danger` · `--danger-solid` (lo que no tiene vuelta atrás).
 Tamaños `--sm` / `--lg`. `.ox-iconbtn` (+`--sm`) para los de solo ícono.
 
+Deshabilitados (`disabled` o `aria-disabled="true"`), los dos se apagan a
+`--ox-text-4` y no se iluminan con el mouse. El `.ox-iconbtn` no lo hacía: se
+veía igual que uno activo y se iluminaba al pasarle el mouse, porque Chromium
+le aplica `:hover` a un botón deshabilitado (en Quire, las flechas de Buscar y
+el deshacer de la tinta). El color viaja con `--tr-color`, así que se apaga y
+se prende suave.
+
+La diferencia, a propósito: `.ox-btn` deshabilitado lleva `pointer-events:
+none`, y `.ox-iconbtn` **no**. Al de ícono se le apagan el hover y el apretón,
+pero sigue recibiendo el puntero, porque su nombre es su tooltip: con los
+eventos cortados, uno apagado no decía qué era ni su atajo (Deshacer
+«Ctrl Z» justo cuando no hay nada que deshacer). Un `[aria-disabled]` sigue
+recibiendo también el click: lo ignora la vista. La vitrina muestra uno en
+«Botones», y lo mide el humo (6-ter), con el mouse de verdad.
+
 Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 `initClickFlash()`.
 
@@ -294,6 +309,15 @@ Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 `bindSwitcher(el, onChange)` de `motion.js` sirve para `.ox-segmented` y
 `.ox-tabs`: maneja el activo, hace viajar el indicador y reajusta al
 redimensionar.
+
+La flecha del `.ox-stepper` que llega al tope queda en `.25` de opacidad, y se
+apaga **fundiéndose**: su transición lleva la opacidad además de
+`--tr-color`. Sin ella caía de un cuadro al otro (Quire, Dividir). La que
+**nace** en el tope, en cambio, nace apagada: el primer `sync()` de
+`bindStepper` va sin transición (`.is-placing`, como `colocar()` con las
+cápsulas). Si no, cuando algo forzaba el estilo entre el `paint()` y el
+cableado, la flecha de un campo en 0 se fundía en cada montaje, también debajo
+del fundido de un repintado.
 
 **La cápsula del segmentado copia la geometría real de la opción activa**
 (`--seg-x` / `--seg-w`, como el subrayado de los tabs), no `ancho / n`. Y el
@@ -413,13 +437,53 @@ await Modal.confirm({ title, sub, confirmLabel, danger });
 
 **Tooltips**: declarativos. `data-tip="texto"`, opcionalmente `data-tip-side`
 (`top`|`bottom`|`left`|`right`) y `data-tip-key` para el atajo. Nunca `title=`.
+Aparecen con el mouse encima **y también con el foco del teclado**: cuando el
+foco es `:focus-visible` y llegó **tabulando**. Antes solo con el
+`pointerover`, y el que recorría la ventana con Tab no veía ningún atajo (en
+Quire había una docena que la interfaz nunca decía). Un clic no lo muestra por
+el foco —un campo clickeado también es `:focus-visible`, y el tooltip
+estorbaría lo que se va a tipear—; con el mouse ya está el hover.
 
-**Menu items**: `{ label, icon, key, danger, selected, disabled, onSelect }`,
-más `{ sep: true }` y `{ groupLabel }`.
+Cuenta Tab, no cualquier tecla: el foco que pone un script después de una
+tecla no es navegar. Con «cualquier tecla», cerrar un modal con Enter o
+Escape (el foco vuelve al botón que lo abrió, y queda `:focus-visible`)
+dejaba flotando el tooltip de ese botón, y un atajo que enfoca un campo
+(Ctrl+F) le ponía el suyo encima de lo que se iba a tipear. Cualquier otra
+tecla corta también el que estaba por salir. Una app que mueve el foco con
+otras teclas (las flechas de una barra) las suma en `Tooltip.init`. Lo mide
+el humo (9-octies), con el clic, el tipeo y el Enter de verdad.
+
+**Menu items**: `{ label, icon, key, hint, danger, selected, disabled, onSelect }`,
+más `{ sep: true }` y `{ groupLabel }`. `hint` es una aclaración atenuada a la
+derecha del nombre, que es el que cede si no entra: las medidas de un papel,
+«del sistema» en la impresora predeterminada. Antes se descartaba en silencio.
+La vitrina lo muestra en el select de **Piezas** («por defecto»).
 
 **Modal**: devuelve una promesa con el `value` del botón que se apretó (`null`
 si se cerró). El `body` puede ser HTML o un `Node` — si es un nodo, podés leer
-sus campos después de que cierre. Atrapa el foco y cierra con Escape.
+sus campos después de que cierre. Atrapa el foco y cierra con Escape. Y se usa
+con el teclado como cualquier diálogo de escritorio:
+
+- **El foco arranca donde se va a trabajar.** En la acción con `autofocus`; sin
+  ninguna, en el primer campo del cuerpo (si ya trae un valor, como al
+  renombrar, queda seleccionado y se escribe encima); sin campos, en la acción
+  `primary`; si no, en la primera del pie. **Nunca en la cruz** del
+  encabezado: antes iba al primer botón o campo del modal, que en orden es la
+  cruz, y lo que se tipeaba no entraba a ningún lado. Por eso un modal con un
+  campo no le pone `autofocus` a su botón.
+- **Enter en un campo de un renglón aplica**: resuelve con la acción `primary`
+  si hay **una sola** y no está deshabilitada (una vista que valida la apaga
+  mientras el dato no sirve, y así frena el Enter). Nunca con `danger-solid`.
+  Un campo que maneja su propio Enter y llama a `preventDefault()` gana. El
+  Enter se frena: si no, le llegaba como click al botón que abrió el modal
+  —que recupera el foco al cerrarse— y lo volvía a abrir.
+- `confirm({ danger: true })` arranca con el foco en **Cancelar**: con él en
+  el botón rojo, un Enter por reflejo borraba lo que no se recupera.
+- `Modal.isOpen`, como `Menu.isOpen`: para que los atajos de una vista no
+  actúen detrás del velo (mientras sale ya cuenta como cerrado).
+
+Lo mide el humo en 5-ter, con las teclas de verdad. El `hint` del menú, en
+5-quater.
 
 ---
 
@@ -429,7 +493,9 @@ sus campos después de que cierre. Atrapa el foco y cierra con Escape.
 exit(el, { fallback: 300 })    // saca del DOM DESPUÉS de la animación de salida
 swap(el, html, { relevo, fundido }) // reescribe un bloque sin cortes (ver abajo)
 calcar(host)                   // la vista que se va: calco opaco que se esfuma (lo usa el router)
+recienCalcado(host)            // ¿lo de adentro todavía no se vio? (sin cuadro desde el calco, o < 60 ms; lo miran repintar y el router)
 repintar(root, poner)          // repinta la misma vista con fundido y sin perder el lugar (lo usa paint)
+asentarPlegables(root)         // los .ox-plegable visibles, en su lugar sin desplegarse (lo usa repintar)
 raf2(fn)                       // dos frames: los estilos iniciales ya se aplicaron
 stagger(container)             // escalona los hijos con --i
 initClickFlash(root)
@@ -488,6 +554,7 @@ numero(el, v)                // un número suelto: en su lugar, con destello (ti
 frase(el, html)              // una frase: si cambian solo sus cifras, destello; si no, relevo
 valor(el, html)              // lo que cambia MUY seguido (un stepper apretado): siempre en su lugar
 deslizarAlto(el, cambio)     // hace cambio() y la caja va de su alto al nuevo
+deslizarAncho(el, cambio)    // lo mismo a lo ancho: un ítem de una fila (la statusbar)
 reconcile(box, items, opts)  // una lista por clave (abajo)
 ```
 
@@ -508,8 +575,22 @@ reconcile(box, items, opts)  // una lista por clave (abajo)
   la fila que se va lleva congelado el ancho de sus celdas (una fila absoluta
   pierde el de las columnas y se encogería). Opciones: `update`, `created`
   (montar íconos), `height`, `enter`.
+- **`deslizarAncho(el, cambio)`** es `deslizarAlto` a lo ancho, para un ítem
+  de una fila que cambia de texto: sin él cambiaba de ancho en un cuadro y
+  todo lo que tenía a la derecha saltaba (en Quire, el nombre del documento
+  corría a la página y a la medida de la statusbar al cambiar de pestaña).
+  Mientras viaja, lo de adentro va en un renglón y lo que sobra se recorta.
+  Con un relevo adentro va solo: `deslizarAncho(item, () => swap(valor, html,
+  { relevo: true }))` —el calco conserva la caja vieja y no cuenta para el
+  ancho nuevo—.
 
 Lo mide el humo (8-terdecies).
+
+La vitrina usa lo mismo que predica: el valor del select de demo cambia con
+`swap(…, { relevo: true })`, y los botones de mono de **Las perillas** se arman
+una vez y después solo alternan `--primary`/`--secondary` (antes se rehacían
+con `innerHTML` en cada click: el elegido cambiaba de un cuadro al otro y el
+destello del click se iba con el nodo viejo). Lo mide el humo (7-bis).
 
 ### Clases de animación
 
@@ -517,6 +598,13 @@ Entradas: `.ox-in-fade` · `.ox-in-rise` · `.ox-in-glide` · `.ox-in-pop`.
 Estado: `.ox-spinning` · `.ox-breathing` · `.ox-shaking` · `.ox-skeleton` ·
 `.ox-ticked`. `.ox-view` es la transición de vista (la aplica el router).
 `.ox-reveal` con `.is-open` para el alto.
+
+**Para repetir una entrada desde JS, `el.animate(…)` sin `fill`** —como
+«Repetir entradas» en Piezas, con la duración y la curva leídas de los
+tokens—. Nunca un `style.animation` en línea con `both`: retiene el último
+cuadro para siempre (el elemento queda bloque contenedor de lo `fixed` y
+frontera de backdrop) y, como inline, le gana a cualquier regla de salida.
+La vitrina lo hacía así hasta octubre de 2026. Lo mide el humo (7-bis).
 
 **Lo que se prende con `hidden` se pliega.** `.ox-plegable` (alto) y
 `.ox-plegable--ancho` (ancho, en una fila) hacen que `el.hidden = …` no sea un
@@ -532,6 +620,18 @@ saltan cuando el plegado pasa a `display: none`. En una columna es igual: el
 tamaño (un ResizeObserver que redibuja), que espere a que termine el pliegue.
 Lo muestra la vitrina en «Mostrar y esconder» y lo mide el humo (8-duodecies).
 
+**Al repintar, lo plegable no se vuelve a desplegar.** Un `.ox-plegable` que
+nace visible se despliega desde 0 con una *transición* (`@starting-style`), y
+`repintar()` daba por terminadas las animaciones pero no las transiciones: la
+barra que ya estaba crecía de 0 a su alto debajo del fundido y empujaba lo de
+abajo (Quire, la barra de tinta al cambiar de documento). Ahora `repintar()`
+llama a `asentarPlegables(root)`: les apaga la transición con `.is-placing`,
+fuerza el estilo y se la devuelve, y termina la que ya hubiera arrancado
+(algo forzó el estilo antes, como una cápsula que vuelve a su lugar). Uno que
+se prende **después** con `hidden = false` se despliega como siempre. Al
+navegar no corre sola: una vista que no quiere que los suyos crezcan debajo
+del calco la llama después de pintar. Lo mide el humo (9-quinquies).
+
 **El cambio de vista es un fundido.** Al navegar, el router pasa el contenido
 de la vista vieja a un calco (`.ox-main--saliente`: misma clase, sin ids, inerte
 y con su scroll) en la misma celda de `.ox-body`, encima, y lo esfuma
@@ -539,6 +639,44 @@ y con su scroll) en la misma celda de `.ox-body`, encima, y lo esfuma
 como el calco es opaco (el fondo de `.ox-main`) la pantalla está tapada en todo
 momento. `.ox-view` (el glide) queda para el arranque, cuando no hay nada que
 relevar. El de humo mide cuánto está tapada la pantalla cada 40 ms (9-ter).
+
+**Cada vista es su propio contexto de apilamiento** (`isolation: isolate` en
+`.ox-body > .ox-main`, en motion.css). Sin eso, un hijo de la vista nueva con
+`z-index` 2 o más —un panel absoluto, el `th` sticky de una tabla que no llega
+a scrollear— competía en la raíz con el calco (`z-index: 1`) y le ganaba: se
+veía entero desde el primer cuadro mientras el resto se fundía (en Quire, la
+columna de miniaturas del lector). Con `isolation` los `z-index` de adentro
+quedan adentro. Un `z-index` de una vista ya no la saca por encima del rail
+ni de la titlebar: lo que tenga que flotar sobre todo va a `#ox-layer`, como
+los overlays. No es bloque contenedor (un `fixed` de adentro sigue contra la
+ventana) ni frontera de backdrop: medido con fotos, un vidrio de adentro de la
+vista sigue esmerilando lo que tiene detrás, y el scrim de un modal sigue
+esmerilando la vista. El humo congela el fundido a los 60 ms y mide el píxel
+(9-sexies): con el calco al 85 %, el píxel es 85 % calco.
+
+**Repintar y navegar en la misma tarea deja un solo calco.** Un `refresh()`
+seguido de un `go()` (en Quire, abrir o cerrar un documento desde otra vista:
+el aviso repinta la actual y enseguida se navega) armaba dos calcos que se
+fundían juntos, y el del medio —un estado que nadie llegó a ver— asomaba
+hasta un 25 % a mitad de camino. Ahora, si lo que hay en el host todavía no
+se vio (`recienCalcado()`: no hubo un cuadro desde el calco, o pasaron menos
+de 60 ms), `go()` no lo vuelve a calcar: descarta lo intermedio y pinta lo
+nuevo directo debajo del calco que ya está, el mismo criterio de
+`repintar()`. En la misma tarea se decide por cuadros y no por reloj: un
+`refresh()` que tarda (un `innerHTML` grande, armar miniaturas) se pasaba de
+los 60 ms antes del `go()` y volvía a calcar. Y lo que el repintado dejó
+pendiente para el final de la tarea (devolver el scroll y el foco, dar por
+terminadas las entradas, escribir los contadores en vez de contarlos) no se
+aplica a la vista nueva: le ponía el scroll de la vieja. Lo mide el humo
+(9-septies), también con 80 ms de trabajo después del `paint()`, con una
+vista scrolleada y con un `countTo()` en la vista nueva.
+
+Con dos navegaciones en tareas distintas dentro de esos 60 ms no es gratis:
+la vista del medio ya se pintó debajo del calco, y al descartarla se corta de
+un cuadro al otro, a lo sumo con un ~15 % de opacidad (el calco va por ~85 %
+a los 60 ms). Se acepta porque la otra salida es peor: calcarla también deja
+dos calcos fundiéndose juntos, y el del medio asoma hasta un 25 % y durante
+más tiempo.
 
 **Repintar la misma vista también es un fundido, y no pierde el lugar.**
 `Router.refresh()` (después de guardar, duplicar, borrar) o una vista que se
@@ -612,6 +750,11 @@ Router.current / .name / .param
 `onLeave` es el que evita la fuga: las vistas que se suscriben a algo tienen que
 soltarlo al navegar, o cada navegación deja basura escuchando y la app se
 degrada sola.
+
+`go()` antes del primer cuadro de un calco o dentro de sus 60 ms (un
+`refresh()` en la misma tarea, otra navegación recién hecha) no calca de
+nuevo: lo intermedio no se llegó a ver y lo nuevo va directo debajo del calco
+que ya está (ver «Repintar y navegar en la misma tarea», arriba).
 
 ---
 

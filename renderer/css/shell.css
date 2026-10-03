@@ -272,13 +272,16 @@
    `padding-top`/`bottom` para su esfumado y pisárselos le rompe la máscara.
 
    Para lo que va de borde a borde —un lienzo, un mapa, una tabla ancha— está
-   `.ox-bleed`. */
-.ox-main > :not(.ox-viewhead):not(.ox-viewbody),
-.ox-viewbody__main {
+   `.ox-bleed` (y `.ox-viewbody__main--bleed` en una vista con inspector). Van
+   EXCLUIDOS en el selector y no con una regla que pise el padding después: la
+   de acá pesa (0,3,0) y un `.ox-bleed { padding-inline: 0 }` (0,1,0) no le
+   ganaba nunca. Salió en Quire, donde el lector quedaba con 24 px de más a
+   cada lado. Excluir también deja intacto el padding propio de lo que va de
+   borde a borde. */
+.ox-main > :not(.ox-viewhead, .ox-viewbody, .ox-bleed),
+.ox-viewbody__main:not(.ox-viewbody__main--bleed) {
   padding-inline: var(--ox-6);
 }
-
-.ox-bleed, .ox-viewbody__main--bleed { padding-inline: 0; }
 
 .ox-viewbody { flex: 1 1 auto; min-height: 0; display: flex; }
 /* position:relative para anclar los controles flotantes del lienzo: si viven
@@ -304,7 +307,9 @@
    propio. El contenido NO se mueve: termina exactamente donde terminaba —la
    barra ocupa el mismo ancho de un lado o del otro— y lo único que cambia es
    dónde nace. */
-.ox-viewbody__main > .ox-scroll {
+/* Solo donde __main lleva la sangría: en uno de borde a borde no hay qué
+   devolver, y estirarlo lo sacaba 24 px por fuera del inspector. */
+.ox-viewbody__main:not(.ox-viewbody__main--bleed) > .ox-scroll {
   margin-right: calc(var(--ox-6) * -1);
   padding-right: var(--ox-6);
 }
