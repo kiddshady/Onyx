@@ -258,3 +258,9 @@
 }
 /* In-out y no ease-in: hay alguien esperando detrás. */
 .ox-swap-out[data-state='closing'] { animation: ox-desvanecer 160ms var(--ox-ease-both) both; }
+/* El fundido de un bloque grande (swap con `fundido`): el calco, con el fondo
+   opaco que le pone el JS, va por encima del `th` sticky de la tabla nueva
+   (z-index 2) y se esfuma en `t-2`. Solo acá: un relevo chico adentro de una
+   celda tiene que seguir pasando por DEBAJO del encabezado clavado. */
+.ox-swap-out--fundido { z-index: 3; }
+.ox-swap-out--fundido[data-state='closing'] { animation: ox-desvanecer var(--ox-t-2) var(--ox-ease-both) both; }

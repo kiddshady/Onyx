@@ -870,6 +870,84 @@ app.whenReady().then(async () => {
     relevo.filas.every((f) => f.mismoLugar && f.quieto), JSON.stringify(relevo.filas.filter((f) => !f.mismoLugar || !f.quieto)));
   ok('al terminar no queda calco ni entrada retenida', relevo.calcos === 0 && relevo.finitas === 0, JSON.stringify(relevo));
 
+  /* El calco conserva la caja de lo VIEJO. Con `inset: 0` tomaba la del
+     contenedor ya con lo nuevo: una frase alineada a la derecha que pasaba a
+     una más corta se esfumaba partida en dos renglones (Pharos 0.4.0, el
+     descuento de la ficha). Y un texto suelto que llega en un relevo tiene
+     que entrar animado, no aparecer entero debajo de lo que se va. */
+  const cajaVieja = await js(`(async () => {
+    const { swap } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:40px;top:40px;width:420px;display:flex;align-items:center;z-index:50';
+    host.innerHTML = '<div style="flex:1"></div><span class="ox-meta"></span>';
+    document.body.append(host);
+    const frase = host.lastElementChild;
+    swap(frase, 'Mostrando precios con <b>40%</b> menos');
+    await espera(400);
+    const r0 = frase.getBoundingClientRect();
+    swap(frase, 'Mostrando precios de lista', { relevo: true });
+    const calco = frase.querySelector(':scope > .ox-swap-out--over');
+    const nuevo = [...frase.children].find((n) => n !== calco);
+    const r = { alto: r0.height, calcoAlto: 0, corrido: 0, nuevoAlEmpezar: nuevo ? +getComputedStyle(nuevo).opacity : null };
+    const t0 = performance.now();
+    while (calco?.isConnected && performance.now() - t0 < 400) {
+      const rc = calco.getBoundingClientRect();
+      r.calcoAlto = Math.max(r.calcoAlto, rc.height, calco.scrollHeight);
+      r.corrido = Math.max(r.corrido, Math.abs(rc.left - r0.left), Math.abs(rc.right - r0.right));
+      await new Promise((ok) => requestAnimationFrame(ok));
+    }
+    host.remove();
+    return r;
+  })()`);
+  ok('el calco conserva la caja de lo viejo: la frase no se parte en dos renglones',
+    cajaVieja.calcoAlto > 0 && cajaVieja.calcoAlto <= cajaVieja.alto + 1, JSON.stringify(cajaVieja));
+  ok('ni se corre de donde estaba', cajaVieja.corrido < 0.5, JSON.stringify(cajaVieja));
+  ok('un texto suelto que llega en un relevo entra animado (arranca invisible)',
+    cajaVieja.nuevoAlEmpezar !== null && cajaVieja.nuevoAlEmpezar <= 0.05, JSON.stringify(cajaVieja));
+
+  /* Fundido: una tabla que gana columnas. Con el relevo la tabla entera
+     pasaba por media luz (0,5 la vieja, 0,3 la nueva). Con fundido la nueva
+     está entera debajo desde el primer cuadro, y el calco es opaco y va por
+     encima del th sticky de la nueva. */
+  const fundido = await js(`(async () => {
+    const { swap } = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const host = document.createElement('div');
+    host.className = 'ox-scroll';
+    host.style.cssText = 'position:fixed;left:40px;top:120px;width:520px;height:160px;z-index:50;background:var(--ox-bg)';
+    document.body.append(host);
+    const tabla = (cols) => '<table class="ox-table"><thead><tr>' + cols.map((c) => '<th>' + c + '</th>').join('')
+      + '</tr></thead><tbody>' + [1, 2, 3].map((i) => '<tr>' + cols.map((c) => '<td>' + c + i + '</td>').join('') + '</tr>').join('') + '</tbody></table>';
+    swap(host, tabla(['Presentación', 'Precio']));
+    await espera(400);
+    swap(host, tabla(['Presentación', 'Lista', 'Con 20%', 'Ahorro']), { fundido: true });
+    const calco = host.querySelector(':scope > .ox-swap-out--over');
+    const nueva = host.querySelector(':scope > table');
+    const th = nueva?.querySelector('th');
+    const bg = calco ? getComputedStyle(calco).backgroundColor : '';
+    const r = {
+      hayCalco: !!calco,
+      opaco: bg !== '' && bg !== 'transparent' && !/^rgba\\(.*,\\s*0\\)$/.test(bg),
+      fondo: bg,
+      zCalco: calco ? +getComputedStyle(calco).zIndex : null,
+      zTh: th ? +getComputedStyle(th).zIndex : null,
+      nueva: 1, viejo: [],
+    };
+    const t0 = performance.now();
+    while (calco?.isConnected && performance.now() - t0 < 400) {
+      r.nueva = Math.min(r.nueva, +getComputedStyle(nueva).opacity);
+      r.viejo.push(Math.round(+getComputedStyle(calco).opacity * 100));
+      await new Promise((ok) => requestAnimationFrame(ok));
+    }
+    host.remove();
+    return r;
+  })()`);
+  ok('fundido: la tabla vieja queda en un calco opaco', fundido.hayCalco && fundido.opaco, JSON.stringify(fundido));
+  ok('que va por encima del encabezado sticky de la nueva', fundido.zCalco > fundido.zTh, JSON.stringify(fundido));
+  ok('la nueva está entera debajo desde el primer cuadro (sin media luz)', fundido.nueva === 1, JSON.stringify(fundido));
+  ok('y el calco se esfuma de a poco', fundido.viejo.some((v) => v > 5 && v < 95), fundido.viejo.join(' '));
+
   await swapA('vacio');
   await sleep(400);
   const aparece = await js(`(async () => {

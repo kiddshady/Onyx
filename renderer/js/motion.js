@@ -52,6 +52,17 @@ export function exit(el, { fallback = 400, onDone } = {}) {
      otro): lo viejo se esfuma en un calco ENCIMA, en el mismo lugar, y lo
      nuevo asoma cuando lo viejo ya va por un tercio. El calco copia el acomodo
      del contenedor para que lo viejo no se mueva mientras se va.
+   · CAMBIA DE FORMA UN BLOQUE GRANDE (`fundido`: una tabla que gana o pierde
+     columnas): la espera del relevo destapa —a mitad de camino lo viejo va
+     por la mitad y lo nuevo por un tercio, y el bloque entero queda a media
+     luz—. Con fundido el calco lleva el fondo opaco de lo que tiene detrás y
+     va por encima del `th` sticky de la tabla nueva, y lo nuevo está entero y
+     quieto debajo desde el primer cuadro. De Pharos 0.4.1.
+
+   En los dos, el calco conserva la caja que tenía lo viejo (ancho, alto y
+   dónde caía), no la del contenedor ya con lo nuevo: con `inset: 0`, una
+   frase que se iba dentro de una caja más angosta se partía en dos renglones
+   mientras se esfumaba, y una más ancha se corría (Pharos 0.4.1).
 
    Con el mismo HTML de la última vez no hace nada: se puede llamar en cada
    refresco sin reemplazar nodos que no cambiaron. Y si lo de antes todavía
@@ -59,7 +70,7 @@ export function exit(el, { fallback = 400, onDone } = {}) {
    cortarlo (dos recálculos seguidos hacían saltar el bloque a opaco). */
 const ultimo = new WeakMap();
 
-export function swap(el, html, { relevo = false } = {}) {
+export function swap(el, html, { relevo = false, fundido = false } = {}) {
   if (!el) return;
   if (ultimo.get(el) === html) return;
   ultimo.set(el, html);
@@ -77,7 +88,7 @@ export function swap(el, html, { relevo = false } = {}) {
   const finitas = () => el.getAnimations({ subtree: true })
     .filter((a) => a.effect?.getTiming().iterations !== Infinity);
 
-  if (antes && despues && !relevo) {
+  if (antes && despues && !relevo && !fundido) {
     const enCurso = finitas().filter((a) => a.playState === 'running').map((a) => a.currentTime);
     const t = enCurso.length ? Math.max(...enCurso) : null;
     el.innerHTML = html;
@@ -97,14 +108,21 @@ export function swap(el, html, { relevo = false } = {}) {
     return;
   }
 
+  let calco = null;
+  let caja = null;
   if (antes) {
-    const calco = document.createElement('div');
-    calco.className = 'ox-swap-out ox-swap-out--over';
+    const r = el.getBoundingClientRect();
+    caja = { left: r.left, top: r.top, w: el.clientWidth, h: el.clientHeight };
+    calco = document.createElement('div');
+    calco.className = `ox-swap-out ox-swap-out--over${fundido ? ' ox-swap-out--fundido' : ''}`;
     calco.inert = true;
     calco.setAttribute('aria-hidden', 'true');
     calco.append(...viejos);
     for (const x of calco.querySelectorAll('[id]')) x.removeAttribute('id');
     if (getComputedStyle(el).position === 'static') el.classList.add('ox-swap-host');
+    // El fondo, del primer opaco hacia arriba: el calco no lleva la clase de
+    // ninguna superficie que lo traiga.
+    if (fundido) calco.style.background = fondoDetras(el);
     el.prepend(calco);
     // Mover un nodo le reinicia las animaciones CSS: lo que tenía su propia
     // entrada volvería a entrar desde cero adentro del calco que se va.
@@ -116,8 +134,48 @@ export function swap(el, html, { relevo = false } = {}) {
 
   const tpl = document.createElement('template');
   tpl.innerHTML = html;
-  for (const n of tpl.content.children) entrar(n, antes);
+  // Un texto suelto no se puede animar: aparecía entero de golpe debajo de lo
+  // viejo que se estaba yendo. Va en un <span> (de Pharos).
+  for (const n of [...tpl.content.childNodes]) {
+    if (n.nodeType !== 3 || !n.textContent.trim()) continue;
+    const s = document.createElement('span');
+    n.replaceWith(s);
+    s.append(n);
+  }
+  // Con fundido lo nuevo no anima: está entero debajo y el calco lo destapa.
+  if (!(fundido && antes)) for (const n of tpl.content.children) entrar(n, antes);
   el.append(tpl.content);
+
+  // El calco, clavado en la caja vieja: medida ya con lo nuevo adentro.
+  if (calco) {
+    const r = el.getBoundingClientRect();
+    Object.assign(calco.style, {
+      inset: 'auto',
+      left: `${caja.left - r.left - el.clientLeft}px`,
+      top: `${caja.top - r.top - el.clientTop}px`,
+      width: `${caja.w}px`,
+      height: `${caja.h}px`,
+    });
+  }
+}
+
+/** El primer fondo opaco hacia arriba: lo que el calco de un fundido tiene que
+    llevar para tapar lo nuevo sin que se note un parche. */
+function fondoDetras(el) {
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    const bg = getComputedStyle(n).backgroundColor;
+    if (alfaDe(bg) >= 1) return bg;
+  }
+  return getComputedStyle(document.body).backgroundColor;
+}
+
+/** La opacidad de un color computado: `rgba(…, a)`, `oklch(… / a)` o sin alfa. */
+function alfaDe(color) {
+  if (!color || color === 'transparent') return 0;
+  const barra = color.match(/\/\s*([\d.]+)(%?)\s*\)$/);
+  if (barra) return Number(barra[1]) / (barra[2] ? 100 : 1);
+  const rgba = color.match(/^rgba\((?:[^,]+,){3}\s*([\d.]+)\s*\)$/);
+  return rgba ? Number(rgba[1]) : 1;
 }
 
 function entrar(n, tarde = false) {

@@ -427,7 +427,7 @@ sus campos después de que cierre. Atrapa el foco y cierra con Escape.
 
 ```js
 exit(el, { fallback: 300 })    // saca del DOM DESPUÉS de la animación de salida
-swap(el, html, { relevo })     // reescribe un bloque sin cortes (ver abajo)
+swap(el, html, { relevo, fundido }) // reescribe un bloque sin cortes (ver abajo)
 raf2(fn)                       // dos frames: los estilos iniciales ya se aplicaron
 stagger(container)             // escalona los hijos con --i
 initClickFlash(root)
@@ -453,14 +453,26 @@ llega lo nuevo; `swap()` distingue cuatro casos:
   sin volver a animar — para lecturas que se recalculan seguido;
 - **un estado reemplaza a otro** (`{ relevo: true }`: pista → cargando →
   resultado): lo viejo se esfuma en un calco encima, en el mismo lugar, y lo
-  nuevo asoma cuando lo viejo va por un tercio.
+  nuevo asoma cuando lo viejo va por un tercio;
+- **un bloque grande cambia de forma** (`{ fundido: true }`: una tabla que gana
+  o pierde columnas): la espera del relevo lo dejaría entero a media luz, así
+  que el calco lleva el fondo opaco de lo que tiene detrás, va por encima del
+  `th` sticky de la tabla nueva, y lo nuevo está entero y quieto debajo desde
+  el primer cuadro.
+
+En el relevo y en el fundido el calco conserva la caja que tenía lo viejo
+(ancho, alto y dónde caía), no la del contenedor ya con lo nuevo: con
+`inset: 0`, una frase que se iba dentro de una caja más angosta se partía en
+dos renglones. Los textos sueltos se envuelven en un `<span>` para que también
+entren animados. Las dos cosas vienen de Pharos 0.4.1.
 
 Con el mismo HTML de la última vez no hace nada, así que se puede llamar en cada
 refresco. Si lo de antes todavía estaba entrando, lo nuevo sigue desde el mismo
 punto del fundido. Mientras dura un relevo el contenido viejo sigue en el DOM
 adentro de `.ox-swap-out--over`, sin ids: buscá lo nuevo con `:scope > …`, no
 con un `querySelector` suelto que puede agarrar lo que se está yendo. Lo muestra
-la vitrina en «Reescribir un bloque» y lo mide el humo (8-undecies).
+la vitrina en «Reescribir un bloque» y lo mide el humo (8-undecies, que
+también mide la caja del calco y el fundido de una tabla).
 
 ### Clases de animación
 
