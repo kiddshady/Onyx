@@ -167,9 +167,21 @@
     opacity var(--ox-t-2) var(--ox-ease-soft),
     display var(--ox-t-2) allow-discrete;
 }
-.ox-plegable[hidden] { display: none; height: 0; padding-block: 0; margin-block: 0; opacity: 0; }
+/* Lo mismo en una columna: plegado a alto 0, el ítem igual cuenta un hueco
+   del `gap`, que desaparecía de golpe al final (cuando pasa a display:none).
+   El margen de arriba negativo se lo come de a poco, junto con el alto. La
+   columna declara cuánto con `--ox-plegable-gap` (un .ox-field ya lo trae);
+   sin declararlo es 0 y queda como antes. Salió de Apex: la pista «Esa hora
+   todavía no llegó» y el «+1h desde la toma» de un hito. */
+.ox-plegable[hidden] {
+  display: none; height: 0; padding-block: 0; opacity: 0;
+  margin-block: calc(-1 * var(--ox-plegable-gap, 0px)) 0;
+}
 @starting-style {
-  .ox-plegable:not([hidden]) { height: 0; padding-block: 0; margin-block: 0; opacity: 0; }
+  .ox-plegable:not([hidden]) {
+    height: 0; padding-block: 0; opacity: 0;
+    margin-block: calc(-1 * var(--ox-plegable-gap, 0px)) 0;
+  }
 }
 
 /* Plegado de ancho, para una fila. Un ítem de ancho 0 igual cuenta un hueco

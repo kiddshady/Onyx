@@ -98,6 +98,10 @@
 
 /* ── Campos ───────────────────────────────────────────────────────────────── */
 .ox-field { display: flex; flex-direction: column; gap: var(--ox-2); }
+/* Una pista que se pliega (.ox-plegable) se come el gap del campo al irse. Va
+   en el hijo y no en el campo: un campo entero que se pliega usa el gap de SU
+   columna, no el de adentro. */
+.ox-field > .ox-plegable { --ox-plegable-gap: var(--ox-2); }
 .ox-field__label {
   font-size: var(--ox-fs-11);
   font-weight: var(--ox-w-medium);

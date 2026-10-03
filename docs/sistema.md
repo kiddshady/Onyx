@@ -480,6 +480,37 @@ con un `querySelector` suelto que puede agarrar lo que se está yendo. Lo muestr
 la vitrina en «Reescribir un bloque» y lo mide el humo (8-undecies, que
 también mide la caja del calco y el fundido de una tabla).
 
+**Lo que cambia con la app andando, en chico.** Para lo que se pone al día sin
+repintar la vista hay cinco ayudas más (nacieron en Finway, Apex y Prism):
+
+```js
+numero(el, v)                // un número suelto: en su lugar, con destello (tick)
+frase(el, html)              // una frase: si cambian solo sus cifras, destello; si no, relevo
+valor(el, html)              // lo que cambia MUY seguido (un stepper apretado): siempre en su lugar
+deslizarAlto(el, cambio)     // hace cambio() y la caja va de su alto al nuevo
+reconcile(box, items, opts)  // una lista por clave (abajo)
+```
+
+- **El primer llenado no es un cambio.** `numero()` no destella cuando el
+  elemento estaba vacío. Por eso un contador del chrome nace **vacío** en el
+  HTML, no en «0»: si no, el primer dato cuenta como cambio y queda teñido de
+  acento mientras se va el splash (Finway 0.8.5).
+- **`frase()` compara la frase con los números tapados.** «3 tomas» → «4 tomas»
+  es la misma frase (destello); «1 toma» → «2 tomas», no (relevo). Si algo cambia
+  en cada paso de un stepper y cambia palabras («hasta el lunes» → «hasta el
+  martes»), va con `valor()`: un relevo en cada paso sería un parpadeo constante.
+- **`reconcile(box, items)`** pone una lista al día fila por fila, por clave
+  (`items: [{ key, html }]`): las que siguen son el MISMO nodo y viajan a su
+  lugar (FLIP), las que se van salen esfumándose fuera del flujo desde donde
+  estaban, y las nuevas entran cuando las viejas casi no se ven. Es lo que va
+  al filtrar, buscar o borrar: con `swap(…, { fundido })` las filas que cambian
+  de lugar se cruzan con las de al lado. Sirve para el `<tbody>` de una tabla:
+  la fila que se va lleva congelado el ancho de sus celdas (una fila absoluta
+  pierde el de las columnas y se encogería). Opciones: `update`, `created`
+  (montar íconos), `height`, `enter`.
+
+Lo mide el humo (8-terdecies).
+
 ### Clases de animación
 
 Entradas: `.ox-in-fade` · `.ox-in-rise` · `.ox-in-glide` · `.ox-in-pop`.
@@ -494,7 +525,10 @@ corte: se pliega hasta 0 mientras se desvanece y recién al final pasa a
 `allow-discrete`. El JS no cambia. `.ox-reveal` sigue siendo para cuando
 manejás una clase y tenés un envoltorio. En una fila, declarale a la fila su
 `gap` en `--ox-plegable-gap` (la statusbar ya lo trae): si no, los de al lado
-saltan cuando el plegado pasa a `display: none`. Si lo de abajo reacciona al
+saltan cuando el plegado pasa a `display: none`. En una columna es igual: el
+`.ox-plegable` se come el gap con el margen de arriba mientras se pliega (un
+`.ox-field` ya se lo declara a sus pistas; otra columna, con
+`--ox-plegable-gap`). Sin eso el gap desaparecía de golpe al final. Si lo de abajo reacciona al
 tamaño (un ResizeObserver que redibuja), que espere a que termine el pliegue.
 Lo muestra la vitrina en «Mostrar y esconder» y lo mide el humo (8-duodecies).
 

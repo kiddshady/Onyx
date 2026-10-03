@@ -970,6 +970,119 @@ app.whenReady().then(async () => {
   ok('la nueva está entera debajo desde el primer cuadro (sin media luz)', fundido.nueva === 1, JSON.stringify(fundido));
   ok('y el calco se esfuma de a poco', fundido.viejo.some((v) => v > 5 && v < 95), fundido.viejo.join(' '));
 
+  /* ── 8-terdecies. Lo que cambia con la app andando ─────────────────────────
+     numero, frase, valor y deslizarAlto nacieron en Finway y en Apex (cada una
+     tenía su copia); reconcile, en Prism. Se miden sobre nodos de prueba. */
+  console.log('\n8-terdecies. Lo que cambia con la app andando');
+  const vivo = await js(`(async () => {
+    const m = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:40px;top:40px;width:420px;z-index:50';
+    document.body.append(host);
+    const nuevo = (html = '') => { const el = document.createElement('div'); el.innerHTML = html; host.append(el); return el; };
+    const r = {};
+
+    // numero: el primer llenado no destella; un cambio, sí.
+    const n = nuevo();
+    m.numero(n, 5); r.primeroDestella = n.classList.contains('ox-ticked');
+    m.numero(n, 6); r.cambioDestella = n.classList.contains('ox-ticked') && n.textContent === '6';
+
+    // frase: solo cifras → en el lugar con destello; otra frase → relevo.
+    const f = nuevo('3 tomas');
+    m.frase(f, '4 tomas');
+    r.cifras = { calco: !!f.querySelector('.ox-swap-out'), destello: f.classList.contains('ox-ticked'), dice: f.textContent };
+    await espera(50);
+    m.frase(f, '1 toma');
+    r.otra = { calco: !!f.querySelector(':scope > .ox-swap-out--over') };
+
+    // valor: siempre en el lugar, aunque cambien palabras; lo que ya dice no cuenta.
+    const v = nuevo('hasta el lunes');
+    m.valor(v, 'hasta el lunes'); r.valorPrimero = v.classList.contains('ox-ticked');
+    m.valor(v, 'hasta el martes');
+    r.valor = { calco: !!v.querySelector('.ox-swap-out'), destello: v.classList.contains('ox-ticked'), dice: v.textContent };
+
+    // deslizarAlto: el alto viaja en vez de saltar.
+    const d = nuevo('una línea');
+    const d0 = d.getBoundingClientRect().height;
+    m.deslizarAlto(d, () => { d.innerHTML = 'una<br>dos<br>tres<br>cuatro'; });
+    const altos = [];
+    for (let i = 0; i < 6; i++) { await new Promise((ok) => requestAnimationFrame(ok)); altos.push(Math.round(d.getBoundingClientRect().height)); }
+    await espera(250);
+    r.alto = { d0: Math.round(d0), altos, final: Math.round(d.getBoundingClientRect().height) };
+
+    host.remove();
+    return r;
+  })()`);
+  ok('numero(): el primer llenado no destella', vivo.primeroDestella === false, JSON.stringify(vivo));
+  ok('y un cambio se escribe en el lugar con un destello', vivo.cambioDestella, JSON.stringify(vivo));
+  ok('frase(): si cambian solo las cifras, en el lugar con destello', !vivo.cifras.calco && vivo.cifras.destello && vivo.cifras.dice === '4 tomas', JSON.stringify(vivo.cifras));
+  ok('y si cambia la frase, relevo', vivo.otra.calco, JSON.stringify(vivo.otra));
+  ok('valor(): siempre en el lugar, aunque cambien palabras', !vivo.valorPrimero && !vivo.valor.calco && vivo.valor.destello && vivo.valor.dice === 'hasta el martes', JSON.stringify(vivo));
+  ok('deslizarAlto(): el alto viaja en vez de saltar',
+    vivo.alto.altos.some((h) => h > vivo.alto.d0 + 1 && h < vivo.alto.final - 1), JSON.stringify(vivo.alto));
+
+  /* reconcile() sobre una tabla: las filas que siguen son el MISMO nodo y
+     viajan (FLIP); la que se va sale fuera del flujo CON el ancho de sus
+     celdas (una fila absoluta pierde el de sus columnas); la nueva entra. */
+  const lista = await js(`(async () => {
+    const { reconcile } = await import('./js/motion.js');
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:40px;top:120px;width:520px;z-index:50;background:var(--ox-bg)';
+    host.innerHTML = '<table class="ox-table"><tbody></tbody></table>';
+    document.body.append(host);
+    const tbody = host.querySelector('tbody');
+    const fila = (k) => ({ key: k, html: '<tr class="ox-tr"><td>' + k + '</td><td class="ox-td--num">$ ' + k.charCodeAt(0) * 37 + '</td><td>nota de ' + k + '</td></tr>' });
+    reconcile(tbody, ['a', 'b', 'c', 'd'].map(fila), { enter: false });
+    const antes = Object.fromEntries([...tbody.children].map((tr) => [tr.dataset.key, tr]));
+    const anchosB = [...antes.b.cells].map((c) => Math.round(c.getBoundingClientRect().width));
+    reconcile(tbody, ['a', 'c', 'd', 'e'].map(fila));
+    const b = antes.b;
+    const r = {
+      mismos: ['a', 'c', 'd'].every((k) => tbody.querySelector('[data-key="' + k + '"]') === antes[k]),
+      bAfuera: getComputedStyle(b).position === 'absolute' && b.dataset.state === 'closing',
+      anchosB, anchosBAfuera: [...b.cells].map((c) => Math.round(c.getBoundingClientRect().width)),
+      viajan: ['c', 'd'].every((k) => antes[k].getAnimations().length > 0),
+      entra: tbody.querySelector('[data-key="e"]')?.getAnimations().length > 0,
+    };
+    await new Promise((ok) => setTimeout(ok, 600));
+    r.orden = [...tbody.children].map((tr) => tr.dataset.key).join('');
+    host.remove();
+    return r;
+  })()`);
+  ok('reconcile(): las filas que siguen son el mismo nodo', lista.mismos, JSON.stringify(lista));
+  ok('la que se va sale fuera del flujo', lista.bAfuera, JSON.stringify(lista));
+  ok('y conserva el ancho de sus celdas mientras se esfuma',
+    lista.anchosB.every((w, i) => Math.abs(w - lista.anchosBAfuera[i]) <= 1), JSON.stringify(lista));
+  ok('las de abajo viajan a su lugar y la nueva entra', lista.viajan && lista.entra, JSON.stringify(lista));
+  ok('al final queda el orden nuevo, sin la que se fue', lista.orden === 'acde', JSON.stringify(lista));
+
+  /* .ox-plegable en una columna: el gap también se pliega de a poco. Antes el
+     alto llegaba a 0 y el gap desaparecía de golpe al final (display:none). */
+  const pliegueCampo = await js(`(async () => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:40px;top:300px;width:300px;z-index:50';
+    host.innerHTML = '<div class="ox-field"><label class="ox-field__label">Cuándo</label><input class="ox-input">'
+      + '<span class="ox-field__hint ox-plegable">Esa hora todavía no llegó.</span></div>';
+    document.body.append(host);
+    const campo = host.firstElementChild;
+    const pista = campo.querySelector('.ox-plegable');
+    // Recién creada entra desplegándose (@starting-style): se espera a que termine.
+    await new Promise((ok) => setTimeout(ok, 450));
+    const altos = [Math.round(campo.getBoundingClientRect().height * 10) / 10];
+    pista.hidden = true;
+    const t0 = performance.now();
+    while (performance.now() - t0 < 360) {
+      await new Promise((ok) => requestAnimationFrame(ok));
+      altos.push(Math.round(campo.getBoundingClientRect().height * 10) / 10);
+    }
+    host.remove();
+    const saltos = altos.slice(1).map((h, i) => Math.round((altos[i] - h) * 10) / 10);
+    return { altos, mayor: Math.max(...saltos), total: Math.round((altos[0] - altos[altos.length - 1]) * 10) / 10 };
+  })()`);
+  ok('una pista plegable se lleva el gap del campo de a poco, sin salto al final',
+    pliegueCampo.total > 10 && pliegueCampo.mayor < 6, JSON.stringify(pliegueCampo));
+
   await swapA('vacio');
   await sleep(400);
   const aparece = await js(`(async () => {

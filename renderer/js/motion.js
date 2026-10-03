@@ -630,3 +630,269 @@ export function tick(el) {
   void el.offsetWidth;          // reinicia la animación
   el.classList.add('ox-ticked');
 }
+
+/* ── Lo que cambia con la app andando ───────────────────────────────────────
+   Para lo que se pone al día SIN repintar la vista: un textContent o un
+   innerHTML a secas cambian de un cuadro al otro. Las cuatro primeras nacieron
+   en Finway y en Apex (cada una tenía su copia, en vivo.js); reconcile(), en
+   Prism (Opal).
+     numero(el, v)               un número suelto: en su lugar, con destello
+     frase(el, html)             una frase: si cambiaron solo sus cifras,
+                                 destella; si cambió la frase, relevo
+     valor(el, html)             algo que cambia MUY seguido (las flechas de un
+                                 stepper apretadas): siempre en su lugar
+     deslizarAlto(el, cambio)    la caja va de su alto al nuevo, no salta
+     reconcile(box, items)       una lista que se pone al día por clave */
+
+/* Los tokens de motion.css, para lo que se anima desde JS. */
+const T = { in: 280, out: 150, move: 280, size: 180, after: 80, step: 14 };
+const EASE = 'cubic-bezier(.16, 1, .3, 1)';         // --ox-ease
+const EASE_BOTH = 'cubic-bezier(.65, 0, .35, 1)';   // --ox-ease-both
+
+const reducido = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** Una animación hecha desde JS que, si la ventana no pinta, igual termina. */
+function settled(anim, ms, fn) {
+  let done = false;
+  const go = () => { if (!done) { done = true; fn(); } };
+  anim.finished.then(go, () => {});
+  setTimeout(go, ms);
+}
+
+/** Un número suelto (un contador, un monto): se reescribe en su lugar y
+    destella en el acento. No se apaga: tipeando cambia en cada tecla, y
+    apagarse y prenderse en cada una se leería como un parpadeo. El primer
+    llenado (el elemento vacío) no es un cambio y no destella: por eso un
+    contador del chrome nace vacío en el HTML, no en «0» —si no, el primer
+    dato cuenta como cambio y queda teñido mientras se va el splash—. */
+export function numero(el, v) {
+  if (!el) return;
+  const texto = String(v);
+  if (el.textContent === texto) return;
+  const primero = el.textContent === '';
+  el.textContent = texto;
+  if (!primero) tick(el);
+}
+
+const textoDe = (html) => {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  return t.content.textContent.trim();
+};
+/** La frase con los números tapados: «3 tomas» y «4 tomas» son la misma
+    frase; «1 toma» y «2 tomas», no. */
+const molde = (s) => s.replace(/\d[\d.,]*/g, '#');
+
+/**
+ * Una frase que se actualiza en vivo (`html` ya escapado). Si cambiaron solo
+ * sus números, se reescribe en el lugar con un destello, como un número: un
+ * relevo de la frase entera en cada tecla la apagaría y prendería sin parar.
+ * Si cambió la frase, relevo; lo vacío entra o se va esfumándose.
+ */
+export function frase(el, html) {
+  if (!el) return;
+  // Durante un relevo el textContent junta lo que se va con lo que llega: por
+  // eso se compara contra la última frase puesta, no contra el DOM.
+  const viejo = el.__frase != null ? textoDe(el.__frase) : el.textContent.trim();
+  const nuevo = textoDe(html);
+  el.__frase = html;
+  if (viejo === nuevo) return;
+  const soloCifras = viejo !== '' && nuevo !== '' && molde(viejo) === molde(nuevo);
+  swap(el, html, soloCifras ? {} : { relevo: true });
+  if (soloCifras) tick(el);
+}
+
+/** Algo que cambia muy seguido (con las flechas apretadas, cada 45 ms): se
+    reescribe SIEMPRE en el lugar con un destello, aunque cambien palabras
+    («hasta el lunes» → «hasta el martes»). Un relevo en cada paso sería un
+    parpadeo constante. La primera vez, lo que ya dice no es un cambio. */
+export function valor(el, html) {
+  if (!el || el.__valor === html) return;
+  const primera = el.__valor == null && el.innerHTML === html;
+  el.__valor = html;
+  if (primera) return;
+  swap(el, html);
+  tick(el);
+}
+
+/* La caja va del alto `h0` al que tiene ahora. Mientras viaja recorta lo que
+   sobra (el calco de un relevo, que conserva el alto viejo). */
+function glideAlto(el, h0) {
+  const h1 = el.getBoundingClientRect().height;
+  if (Math.abs(h1 - h0) < 1 || reducido() || typeof el.animate !== 'function') return;
+  el.__glide = el.animate([{ height: `${h0}px`, overflow: 'clip' }, { height: `${h1}px`, overflow: 'clip' }],
+    { duration: T.size, easing: EASE_BOTH });
+}
+
+/**
+ * Hace `cambio()` (que cambia el contenido de `el`) y desliza el alto de `el`
+ * desde el que tenía hasta el nuevo, en vez de saltar. Para una caja que
+ * cambia de forma adentro de un modal o una card: sin esto todo lo de abajo
+ * —y el modal entero— cambiaba de alto en un cuadro (Apex, la zona de
+ * cantidad al cambiar de sustancia).
+ */
+export function deslizarAlto(el, cambio) {
+  if (!el) { cambio(); return; }
+  // El alto que se VE (si venía deslizándose, desde donde iba), y recién
+  // después se corta el viaje anterior: el alto nuevo se mide sin él.
+  const h0 = el.getBoundingClientRect().height;
+  el.__glide?.cancel();
+  cambio();
+  glideAlto(el, h0);
+}
+
+/* ── Listas que se ponen al día ─────────────────────────────────────────────
+   Rehacer una lista con innerHTML la hace parpadear: lo que estaba se va de
+   un cuadro al otro y lo nuevo aparece todo junto, aunque sea casi lo mismo
+   (buscar, filtrar, borrar una fila). Y con swap(…, { fundido }) las filas
+   que cambian de lugar se cruzan con las de al lado. reconcile() la pone al
+   día fila por fila, por clave:
+   · las que siguen son el MISMO nodo, y viajan a su lugar nuevo (FLIP);
+   · las que ya no están salen desde donde estaban, fuera del flujo;
+   · las nuevas entran, y si había algo yéndose, esperan a que casi no se vea.
+   Sirve también para las filas de una tabla (box = el <tbody>): la que se va
+   lleva congelado el ancho de cada celda, porque una fila absoluta pierde el
+   de sus columnas y se encogería mientras se esfuma.
+
+   items: [{ key, html, ...lo que quieras }]. Opciones:
+     update(el, item)   pone al día una fila que sigue y cuyo html cambió (sin
+                        esto se le copian los atributos —las clases nuevas
+                        corren con sus transiciones— y si cambió el contenido
+                        se releva con un parpadeo corto)
+     created(el, item)  después de crear una fila o reemplazar su contenido
+                        (montar íconos)
+     height             la caja va de su alto al nuevo
+     enter              false: las nuevas aparecen sin animar
+   De Prism (Opal), octubre de 2026. */
+export function reconcile(box, items, { update, created, height = false, enter = true } = {}) {
+  const was = new Map();
+  const leaving = [];
+  for (const el of box.children) {
+    if (el.dataset.state === 'closing') continue;
+    if (el.dataset.key != null && !was.has(el.dataset.key)) was.set(el.dataset.key, el);
+    else leaving.push(el);    // lo que no tiene clave (un innerHTML de antes) también se va
+  }
+  const keep = new Set(items.map((it) => it.key));
+  for (const [k, el] of was) if (!keep.has(k)) leaving.push(el);
+
+  // Dónde estaba cada cosa: todas las lecturas antes de cualquier escritura.
+  const box0 = box.getBoundingClientRect();
+  const h0 = height ? box0.height : 0;
+  const first = new Map();
+  for (const el of box.children) if (el.dataset.state !== 'closing') first.set(el, el.getBoundingClientRect());
+  const celdas = new Map(leaving.filter((el) => el.cells)
+    .map((el) => [el, [...el.cells].map((c) => c.getBoundingClientRect().width)]));
+  for (const el of was.values()) { el.__move?.cancel(); el.__move = null; }
+
+  if (leaving.length && getComputedStyle(box).position === 'static') box.style.position = 'relative';
+  for (const el of leaving) {
+    const r = first.get(el);
+    // Una fila de tabla absoluta deja de ser fila: sus celdas pierden el ancho
+    // de las columnas. Se lo lleva puesto.
+    celdas.get(el)?.forEach((w, i) => { el.cells[i].style.width = `${w}px`; });
+    Object.assign(el.style, {
+      position: 'absolute', margin: '0', boxSizing: 'border-box', pointerEvents: 'none', zIndex: '0',
+      top: `${r.top - box0.top - box.clientTop + box.scrollTop}px`,
+      left: `${r.left - box0.left - box.clientLeft + box.scrollLeft}px`,
+      width: `${r.width}px`, height: `${r.height}px`,
+    });
+    el.dataset.state = 'closing';
+    if (reducido()) { el.remove(); continue; }
+    const op = Number(getComputedStyle(el).opacity) || 0;
+    const anim = el.animate([{ opacity: op }, { opacity: 0 }], { duration: T.out, easing: EASE_BOTH, fill: 'forwards' });
+    settled(anim, T.out + 200, () => el.remove());
+  }
+
+  const fresh = [];
+  let prev = null;
+  for (const it of items) {
+    let el = was.get(it.key);
+    if (!el) {
+      el = hacerFila(it);
+      fresh.push(el);
+    } else if (el.__html !== it.html) {
+      if (update) update(el, it); else ponerFila(el, it, created);
+      el.__html = it.html;
+    }
+    // A su lugar, salteando lo que se está yendo (no cuenta para el orden).
+    let want = prev ? prev.nextElementSibling : box.firstElementChild;
+    while (want && want !== el && want.dataset.state === 'closing') want = want.nextElementSibling;
+    if (want !== el) {
+      box.insertBefore(el, want);
+      if (!fresh.includes(el)) callar(el);   // moverlo le reinicia las animaciones de CSS
+    }
+    prev = el;
+  }
+  for (const el of fresh) { callar(el); created?.(el, el.__item); }
+
+  if (!reducido()) {
+    // Las que siguen viajan de donde estaban a donde quedaron.
+    const vh = window.innerHeight;
+    for (const el of was.values()) {
+      if (!keep.has(el.dataset.key)) continue;
+      const a = first.get(el);
+      const b = el.getBoundingClientRect();
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      if ((a.bottom < 0 && b.bottom < 0) || (a.top > vh && b.top > vh)) continue;   // afuera: nadie lo ve
+      el.__move = el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], { duration: T.move, easing: EASE });
+    }
+    if (enter) {
+      const wait = leaving.length ? T.after : 0;
+      fresh.forEach((el, i) => {
+        el.animate([{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }],
+          { duration: T.in, easing: EASE, delay: wait + Math.min(i, 16) * T.step, fill: 'backwards' });
+      });
+    }
+  }
+
+  if (height) { box.__glide?.cancel(); glideAlto(box, h0); }
+  return { fresh, leaving };
+}
+
+function hacerFila(it) {
+  const t = document.createElement('template');
+  t.innerHTML = it.html.trim();
+  const el = t.content.firstElementChild;
+  el.dataset.key = it.key;
+  el.__html = it.html;
+  el.__inner = el.innerHTML;
+  el.__item = it;
+  return el;
+}
+
+/* Sin la entrada propia de la fila (la que tiene en su CSS para cuando la
+   lista se pinta entera): de entrar se encarga reconcile(). Cancelada por la
+   API, una animación de CSS no vuelve hasta que cambie su nombre, así que la
+   salida de [data-state=closing] (exit()) sigue funcionando. */
+function callar(el) {
+  for (const a of el.getAnimations()) if (a instanceof CSSAnimation && a.effect?.getTiming().iterations !== Infinity) a.cancel();
+}
+
+/* Una fila que sigue pero cambió: los atributos se copian (las clases nuevas
+   corren con sus transiciones de color), y el contenido, si cambió, se releva
+   con un parpadeo corto en vez de cambiar de un cuadro al otro. */
+function ponerFila(el, it, created) {
+  const t = document.createElement('template');
+  t.innerHTML = it.html.trim();
+  const nu = t.content.firstElementChild;
+  for (const { name } of [...el.attributes]) if (name !== 'data-key' && name !== 'data-state' && name !== 'style' && !nu.hasAttribute(name)) el.removeAttribute(name);
+  for (const { name, value } of [...nu.attributes]) if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  el.__item = it;
+  if (nu.innerHTML === el.__inner) return;
+  el.__inner = nu.innerHTML;
+  el.__next = nu;
+  if (el.__blink) return;               // ya hay uno en curso: usa lo último que llegue
+  if (reducido()) { el.replaceChildren(...nu.childNodes); el.__next = null; created?.(el, el.__item); return; }
+  el.__blink = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 90, easing: EASE_BOTH, fill: 'forwards' });
+  settled(el.__blink, 200, () => {
+    const latest = el.__next;
+    el.__next = null;
+    el.replaceChildren(...latest.childNodes);
+    created?.(el, el.__item);
+    el.__blink.cancel();
+    el.__blink = null;
+    el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: T.in - 100, easing: EASE });
+  });
+}
