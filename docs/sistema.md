@@ -48,6 +48,14 @@ fuerte / seleccionado), `--ox-wash-3` (activo / presionado), `--ox-ring` (focus)
 `--ox-select` (`::selection`). Todos salen de `--ox-accent-rgb`: cambiar el
 triplete los re-tinta a todos.
 
+`--ox-select-claro` es la selección sobre una superficie **clara** dentro de la app
+(una hoja de PDF, una vista previa): el mismo gesto invertido. Sobre papel
+blanco el acento tendido no se ve (deja el papel en 253 de 255), así que
+oscurece, con el fondo de la app al 16 %. Se usa con la clase `.ox-sobre-claro`
+en el contenedor claro, que además deja la letra con su color (el
+`::selection` de siempre la pasaba a `--ox-text`, casi blanca). Nació en el
+lector de Quire; lo mide el humo (6-ter) con una foto.
+
 `--ox-accent-ink` es la tinta **sobre** el acento. Con un acento oscuro o muy
 saturado hay que subirla.
 
@@ -276,6 +284,12 @@ eventos cortados, uno apagado no decía qué era ni su atajo (Deshacer
 «Ctrl Z» justo cuando no hay nada que deshacer). Un `[aria-disabled]` sigue
 recibiendo también el click: lo ignora la vista. La vitrina muestra uno en
 «Botones», y lo mide el humo (6-ter), con el mouse de verdad.
+
+Un `.ox-btn` deshabilitado **con `data-tip`** también recibe el puntero:
+así su tooltip dice por qué está apagado («Este PDF tiene contraseña»). No
+se ilumina ni se aprieta, y el clic no llega (un `<button disabled>` no lo
+dispara). Sin tooltip, o con `[aria-disabled]` (que sí recibiría el clic),
+sigue con el puntero cortado. Nació como `.qr-explica` en Quire.
 
 Agregá `.ox-flashable` para el velo de luz al presionar. Se cablea solo con
 `initClickFlash()`.

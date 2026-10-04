@@ -860,6 +860,81 @@ app.whenReady().then(async () => {
     JSON.stringify({ ...ibHover, tenue: apagados.tenue }));
   ok('pero su tooltip sigue diciendo qué es y su atajo', ibHover.apagado.tip === 'DeshacerCtrl Z', JSON.stringify(ibHover));
 
+  /* Lo mismo para un botón de TEXTO apagado con tooltip: dice por qué está
+     apagado (en Quire, «Imprimir» con un PDF con contraseña). Antes tenía
+     pointer-events: none y el tooltip nunca salía. Con el mouse de verdad
+     encima: sale el tooltip y el ghost no se ilumina. Uno sin tooltip, y uno
+     [aria-disabled] (que sí recibiría el clic), siguen con el puntero cortado. */
+  const btPos = await js(`(() => {
+    const c = document.createElement('div');
+    c.id = 'bt-caja';
+    c.style.cssText = 'position:fixed;left:520px;top:520px;display:flex;gap:40px;z-index:50';
+    c.innerHTML = '<button class="ox-btn ox-btn--ghost" id="bt-tip" disabled data-tip="Este PDF tiene contraseña">Imprimir</button>'
+      + '<button class="ox-btn ox-btn--secondary" id="bt-mudo" disabled>Guardar</button>'
+      + '<button class="ox-btn ox-btn--secondary" id="bt-aria" aria-disabled="true" data-tip="No">Exportar</button>';
+    document.body.append(c);
+    const r = c.children[0].getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  })()`);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(btPos.x - 20), y: Math.round(btPos.y + 60) });
+  await sleep(500);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: Math.round(btPos.x), y: Math.round(btPos.y) });
+  await sleep(700);
+  const btHover = await js(`(() => {
+    const cs = (id) => getComputedStyle(document.getElementById(id));
+    const t = [...document.querySelectorAll('.ox-tooltip')].find((x) => !x.dataset.state);
+    return { tip: t ? t.textContent : null, fondo: cs('bt-tip').backgroundColor, color: cs('bt-tip').color,
+      mudo: cs('bt-mudo').pointerEvents, aria: cs('bt-aria').pointerEvents };
+  })()`);
+  win.webContents.sendInputEvent({ type: 'mouseMove', x: 4, y: H - 40 });
+  await sleep(300);
+  await js(`document.getElementById('bt-caja')?.remove(); true`);
+  ok('un .ox-btn apagado con tooltip dice por qué está apagado', btHover.tip === 'Este PDF tiene contraseña', JSON.stringify(btHover));
+  ok('y con el mouse encima no se ilumina (el ghost sigue sin fondo y en --ox-text-4)',
+    btHover.fondo === 'rgba(0, 0, 0, 0)' && btHover.color === apagados.tenue, JSON.stringify({ ...btHover, tenue: apagados.tenue }));
+  ok('sin tooltip, o con aria-disabled, el puntero sigue cortado', btHover.mudo === 'none' && btHover.aria === 'none', JSON.stringify(btHover));
+
+  /* La selección sobre una superficie clara (.ox-sobre-claro, el lector de
+     Quire). Con el ::selection de siempre, el velo es el acento —casi blanco—
+     y la letra pasa a --ox-text: sobre papel blanco no se ve el velo y la
+     tinta oscura se vuelve clara. Se mide en la foto: el papel seleccionado
+     tiene que oscurecer y la letra seguir oscura; la de control, sin la
+     clase, muestra el defecto. */
+  const papel = async (clase) => {
+    const r = await js(`(() => {
+      document.getElementById('sel-papel')?.remove();
+      const p = document.createElement('div');
+      p.id = 'sel-papel';
+      p.className = '${clase}';
+      p.style.cssText = 'position:fixed;left:40px;top:300px;padding:0;background:#fff;color:#111;font:700 28px/1.2 sans-serif;white-space:nowrap;user-select:text;z-index:60';
+      p.textContent = 'HOJA BLANCA';
+      document.body.append(p);
+      const rg = document.createRange(); rg.selectNodeContents(p);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(rg);
+      const b = p.getBoundingClientRect();
+      return { x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) };
+    })()`);
+    await sleep(150);
+    const img = await win.webContents.capturePage({ x: r.x + 1, y: r.y + 2, width: r.w - 2, height: r.h - 4 });
+    const buf = img.toBitmap();
+    let claro = 255; let oscuro = 255; let lum = 0; let n = 0;
+    for (let i = 0; i < buf.length; i += 4) {
+      const L = Math.round(0.299 * buf[i + 2] + 0.587 * buf[i + 1] + 0.114 * buf[i]);
+      oscuro = Math.min(oscuro, L); lum += L; n++;
+    }
+    // El fondo es lo que más se repite: la mediana alcanza.
+    const ls = [];
+    for (let i = 0; i < buf.length; i += 4) ls.push(Math.round(0.299 * buf[i + 2] + 0.587 * buf[i + 1] + 0.114 * buf[i]));
+    ls.sort((a, b) => a - b);
+    claro = ls[Math.floor(ls.length * 0.75)];
+    return { fondo: claro, letra: oscuro };
+  };
+  const conClase = await papel('ox-sobre-claro');
+  const sinClase = await papel('');
+  await js(`getSelection().removeAllRanges(); document.getElementById('sel-papel')?.remove(); true`);
+  ok('sobre papel, lo seleccionado se oscurece (antes quedaba en 253 de 255)', conClase.fondo < 235 && sinClase.fondo > 245, JSON.stringify({ conClase, sinClase }));
+  ok('y la letra seleccionada sigue oscura (con el ::selection de siempre se aclaraba)', conClase.letra < 80 && sinClase.letra > conClase.letra + 60, JSON.stringify({ conClase, sinClase }));
+
   console.log('\n7. La fuente empaquetada carga de verdad');
   /* Éste es el chequeo que evita el fracaso silencioso: con CSP estricta y
      protocolo file://, un @font-face con la ruta mal puesta no tira error —
