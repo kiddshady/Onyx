@@ -481,9 +481,26 @@ con el teclado como cualquier diálogo de escritorio:
   el botón rojo, un Enter por reflejo borraba lo que no se recupera.
 - `Modal.isOpen`, como `Menu.isOpen`: para que los atajos de una vista no
   actúen detrás del velo (mientras sale ya cuenta como cerrado).
+- **Un modal abierto encima de otro lo pisa**: el de abajo se contesta con
+  `null` y sale con su `exit()`. Antes quedaba huérfano —la promesa colgada,
+  y su velo y su caja en el DOM aunque se cerrara el nuevo—. Las dos cajas
+  hacen un relevo: la de abajo sale en in-out y la nueva espera su turno
+  (`is-after`) en vez de cruzarse con ella en el centro. La caja que sale
+  queda inerte: antes se la podía clickear durante su salida y el botón le
+  contestaba al modal **nuevo** (un «Borrar todo» de abajo confirmaba el
+  «¿Cerrar sin guardar?» de arriba). El velo heredado respeta el
+  `dismissible` del nuevo, y al cerrar el nuevo el foco vuelve a quien abrió
+  el primero.
+- **Un solo velo, siempre.** Con uno saliendo y otro entrando se apilaban dos
+  capas y la pantalla se oscurecía en el medio del cambio (medido: de .62 a
+  .79). Al pisar, el nuevo hereda el velo, quieto. Y en el caso más común
+  —`Modal.close()` y enseguida otro `Modal.show()`: un confirm y después otro
+  diálogo— el velo que se estaba yendo se revive y vuelve a su opacidad
+  desde donde iba, en vez de entrar otro debajo. `Modal.close(valor)` no
+  tiene opciones: dejar el velo puesto es cosa interna del `show()`.
 
 Lo mide el humo en 5-ter, con las teclas de verdad. El `hint` del menú, en
-5-quater.
+5-quater. El modal que pisa a otro, en 5-quinquies.
 
 ---
 
@@ -509,7 +526,10 @@ tick(el)                       // destella un valor que acaba de cambiar
 ```
 
 `exit()` es el más importante y el que más se olvida: sin él, todo lo que se va
-del DOM parpadea.
+del DOM parpadea. Lo que se está yendo se puede **revivir**: sacarle
+`data-state` antes de que termine lo deja en el DOM (y `onDone` no corre).
+Así vuelven el velo de un modal que se cierra y otro que abre enseguida, y el
+número de un contador que reaparece a mitad de su salida.
 
 **`swap()` en vez de `innerHTML`** para todo bloque que cambia con la app
 andando. Un `innerHTML` a secas se lleva lo viejo en el mismo cuadro en que
@@ -547,7 +567,7 @@ la vitrina en «Reescribir un bloque» y lo mide el humo (8-undecies, que
 también mide la caja del calco y el fundido de una tabla).
 
 **Lo que cambia con la app andando, en chico.** Para lo que se pone al día sin
-repintar la vista hay cinco ayudas más (nacieron en Finway, Apex y Prism):
+repintar la vista hay siete ayudas más (nacieron en Finway, Apex, Prism y Quire):
 
 ```js
 numero(el, v)                // un número suelto: en su lugar, con destello (tick)
@@ -555,6 +575,8 @@ frase(el, html)              // una frase: si cambian solo sus cifras, destello;
 valor(el, html)              // lo que cambia MUY seguido (un stepper apretado): siempre en su lugar
 deslizarAlto(el, cambio)     // hace cambio() y la caja va de su alto al nuevo
 deslizarAncho(el, cambio)    // lo mismo a lo ancho: un ítem de una fila (la statusbar)
+ocupar(btn, ocupado, html)   // un botón libre ↔ ocupado: relevo adentro y el ancho viaja
+contador(el, n)              // un contador que aparece, cambia en su lugar y se va
 reconcile(box, items, opts)  // una lista por clave (abajo)
 ```
 
@@ -583,8 +605,39 @@ reconcile(box, items, opts)  // una lista por clave (abajo)
   Con un relevo adentro va solo: `deslizarAncho(item, () => swap(valor, html,
   { relevo: true }))` —el calco conserva la caja vieja y no cuenta para el
   ancho nuevo—.
+- **Con un relevo adentro, primero se va lo de adentro.** `deslizarAncho` y
+  `deslizarAlto` miran si después del `cambio()` hay un calco de `swap()`
+  yéndose. Si la caja se **achica**, espera 100 ms y se pliega in-out (con
+  `fill: backwards`): plegándose en el acto le cortaba a la frase que se iba
+  un pedazo cuando todavía estaba casi entera (con el calco al 50 %, 71 px).
+  Si **crece**, no espera y se abre en expo-out: lo nuevo entra con el
+  retardo del relevo y encuentra la caja casi abierta. Sin relevo adentro,
+  in-out parejo como siempre; con un `fundido` adentro también (esa espera
+  se midió con la salida del relevo, 160 ms, y la del fundido dura 180 y
+  lleva fondo opaco). Es el `glideSize` de Prism; en Quire había dos copias
+  locales (Imprimir y Páginas) y el pedido de la statusbar (2F).
+- **`ocupar(btn, ocupado, html)`**: el botón que hace un trabajo pasa a
+  «ocupado» («Exportar» → spinner y «Exportando…») con un relevo en el
+  lugar, y su ancho viaja con `deslizarAncho`. El estado vive en
+  `data-ocupado`, no en la memoria de `swap()`, que es del nodo: si la vista
+  se repinta en medio del trabajo, el botón nuevo nace ocupado y el primer
+  `ocupar()` relevaba su propio rótulo. Por eso el HTML que lo arma lleva
+  `data-ocupado="1"` cuando nace ocupado (sin la marca cuenta como libre).
+  Pone `aria-busy`; el `disabled` es de quien lo llama.
+- **`contador(el, n)`**: un contador que solo se ve cuando hay algo (el de un
+  ítem del rail). 0, vacío o `null` es «nada». Aparece y se va con `swap()`
+  (fundido) y cambia en su lugar con destello. Junta lo que `swap()` y
+  `numero()` no pueden hacer sobre el mismo nodo: cada uno tiene su memoria,
+  y `numero()` compara contra el `textContent`, que durante una salida
+  todavía dice el número que se va (si ese número volvía, no se escribía y
+  el contador quedaba vacío). `numero(el, '')` además corta de golpe. Si un
+  número vuelve mientras el contador se iba (12 → 0 → 12), el que se iba se
+  revive desde su opacidad: con `swap()` la salida se cortaba y lo nuevo
+  entraba desde 0 (0,93 → 0 en un cuadro). Nace vacío en el HTML, como
+  cualquier contador.
 
-Lo mide el humo (8-terdecies).
+Lo mide el humo (8-terdecies y 8-terdecies-bis). La vitrina muestra
+`ocupar()` y `contador()` en «Ocupado y contadores» (7-bis).
 
 La vitrina usa lo mismo que predica: el valor del select de demo cambia con
 `swap(…, { relevo: true })`, y los botones de mono de **Las perillas** se arman

@@ -508,6 +508,148 @@ app.whenReady().then(async () => {
     JSON.stringify(hint));
   ok('y va atenuado (--ox-text-4)', hint.filas.every((f) => f && f.color === hint.tenue), JSON.stringify(hint));
 
+  /* ── 5-quinquies. Un modal abierto encima de otro ───────────────────────────
+     El de abajo quedaba huérfano: su promesa no se resolvía nunca, y su velo y
+     su caja se quedaban en el DOM (Quire, 2F). Ahora se contesta con null y
+     sale con su exit(), y el velo lo hereda el nuevo: con dos velos a .62 (uno
+     saliendo y otro entrando) la pantalla se oscurecía en el medio del
+     cambio. Se mide la opacidad del velo cuadro por cuadro, que un velo
+     heredado y no otro nuevo no se deja descartar si el nuevo no quiere, y
+     que el foco vuelve a quien abrió el primero. Las dos cajas hacen un
+     relevo (la nueva asoma cuando la vieja ya va por un tercio, no se
+     cruzan enteras en el centro), y abajo: la caja que sale no contesta un
+     click, y close() y show() seguidos tampoco apilan dos velos. */
+  console.log('\n5-quinquies. Un modal abierto encima de otro');
+  const pisa = await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cuadro = () => new Promise((ok) => requestAnimationFrame(ok));
+    const capa = document.getElementById('ox-layer');
+    const abridor = document.createElement('button');
+    abridor.className = 'ox-btn'; abridor.textContent = 'abrir';
+    abridor.style.cssText = 'position:fixed;left:10px;top:10px;z-index:1';
+    document.body.append(abridor);
+    abridor.focus();
+    const r = {};
+    let resA = 'sin contestar';
+    Modal.show({ title: 'Primero', actions: [{ label: 'Aceptar', value: true, variant: 'primary' }] }).then((v) => { resA = v; });
+    await espera(400);
+    const velo = capa.querySelector('.ox-scrim');
+    const cajaA = capa.querySelector('.ox-modal__anim');
+    let resB = 'sin contestar';
+    Modal.show({ title: 'Segundo', dismissible: false, actions: [{ label: 'Listo', value: 'listo', variant: 'primary' }] }).then((v) => { resB = v; });
+    await Promise.resolve();
+    r.contesto = resA;
+    r.sale = cajaA.dataset.state;
+    const cajaB = [...capa.querySelectorAll('.ox-modal__anim')].pop();
+    const ops = []; const cajas = [];
+    for (let i = 0; i < 20; i++) {
+      const velos = [...capa.querySelectorAll('.ox-scrim')];
+      // Lo que tapa la pantalla: cada velo es rgba(…, .62) con su opacidad.
+      ops.push(+(1 - velos.reduce((p, v) => p * (1 - 0.62 * +getComputedStyle(v).opacity), 1)).toFixed(3));
+      cajas.push([cajaA.isConnected ? +(+getComputedStyle(cajaA).opacity).toFixed(2) : 0, +(+getComputedStyle(cajaB).opacity).toFixed(2)]);
+      await cuadro();
+    }
+    r.tapa = ops;
+    r.relevo = cajas;
+    r.velos = capa.querySelectorAll('.ox-scrim').length;
+    r.mismoVelo = capa.querySelector('.ox-scrim') === velo;
+    await espera(300);
+    r.cajas = [...capa.querySelectorAll('.ox-modal__anim')].map((a) => a.querySelector('.ox-modal__title').textContent);
+    r.abierto = Modal.isOpen;
+    // El velo heredado no cierra un modal que no se deja descartar.
+    velo.click();
+    await espera(50);
+    r.trasClickVelo = Modal.isOpen && resB === 'sin contestar';
+    Modal.close('cerrado');
+    await espera(400);
+    r.resB = resB;
+    r.quedan = capa.querySelectorAll('.ox-scrim, .ox-modal__anim').length;
+    r.foco = document.activeElement === abridor;
+    abridor.remove();
+    return r;
+  })()`);
+  if (process.env.ONYX_SERIES) console.log(JSON.stringify(pisa));
+  ok('el modal de abajo se contesta con null y sale con su exit()', pisa.contesto === null && pisa.sale === 'closing', JSON.stringify(pisa));
+  ok('el velo es el mismo y no se oscurece en el cambio (un solo velo, quieto en .62)',
+    pisa.velos === 1 && pisa.mismoVelo && pisa.tapa.every((t) => Math.abs(t - 0.62) < 0.02), JSON.stringify(pisa.tapa));
+  ok('al terminar queda una sola caja, la del nuevo', pisa.cajas.length === 1 && pisa.cajas[0] === 'Segundo' && pisa.abierto, JSON.stringify(pisa.cajas));
+  ok('el velo heredado respeta al nuevo: si no se deja descartar, el click no lo cierra', pisa.trasClickVelo, JSON.stringify(pisa));
+  ok('cerrado el nuevo, no queda nada en la capa y el foco vuelve a quien abrió el primero',
+    pisa.resB === 'cerrado' && pisa.quedan === 0 && pisa.foco, JSON.stringify(pisa));
+  /* Relevo: ningún cuadro con las dos cajas a la vista (la vieja por encima
+     de .4 y la nueva asomando), y la nueva asoma recién con la vieja por
+     debajo de .4. Sin la espera, en el cuadro siguiente al show las dos ya
+     se veían (1 y .3). */
+  const asoma = pisa.relevo.findIndex(([, b]) => b > 0.02);
+  ok('las dos cajas hacen un relevo: la nueva espera a que la vieja vaya por un tercio',
+    asoma > 0 && pisa.relevo[asoma][0] < 0.4 && pisa.relevo.every(([a, b]) => !(a > 0.4 && b > 0.1))
+      && pisa.relevo.some(([a]) => a > 0.05 && a < 0.95), JSON.stringify(pisa.relevo));
+
+  /* La caja que sale no contesta. Se clickea con el mouse de verdad (por la
+     ventana, no con el.click(): lo que importa es a quién le llega) el botón
+     del de abajo a los 40 ms de que lo pise otro. Antes el click le llegaba
+     al botón que se iba, y su close() cerraba al de ARRIBA con el valor de
+     abajo. El de arriba no se deja descartar: el click cae en el velo y no
+     pasa nada. */
+  const xy = await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    window.__pisa = { A: 'sin contestar', B: 'sin contestar' };
+    Modal.show({ title: 'Primero', width: 700, body: '<div style="height:300px"></div>',
+      actions: [{ label: 'Borrar todo', value: 'valor-de-A', variant: 'primary' }] }).then((v) => { window.__pisa.A = v; });
+    await new Promise((r) => setTimeout(r, 400));
+    const b = [...document.querySelectorAll('.ox-modal__foot button')].find((x) => x.textContent === 'Borrar todo');
+    const q = b.getBoundingClientRect();
+    Modal.show({ title: 'Segundo', width: 320, dismissible: false,
+      actions: [{ label: 'Listo', value: 'valor-de-B', variant: 'primary' }] }).then((v) => { window.__pisa.B = v; });
+    return { x: Math.round(q.left + q.width / 2), y: Math.round(q.top + q.height / 2) };
+  })()`);
+  await sleep(40);
+  win.webContents.sendInputEvent({ type: 'mouseDown', x: xy.x, y: xy.y, button: 'left', clickCount: 1 });
+  win.webContents.sendInputEvent({ type: 'mouseUp', x: xy.x, y: xy.y, button: 'left', clickCount: 1 });
+  await sleep(80);
+  const clic = await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const r = { ...window.__pisa, abierto: Modal.isOpen };
+    Modal.close(null);
+    await new Promise((ok) => setTimeout(ok, 400));
+    return r;
+  })()`);
+  ok('la caja que sale no contesta: clickear su botón no cierra al que la pisó',
+    clic.A === null && clic.B === 'sin contestar' && clic.abierto, JSON.stringify(clic));
+
+  /* close() y enseguida show() (un confirm y después otro diálogo): el velo
+     que se iba se revive y vuelve desde donde estaba. Antes entraba otro
+     debajo y los dos juntos llegaban a .79. Con el show en el mismo cuadro
+     y a los 60 ms. */
+  const modalesSeguidos = await js(`(async () => {
+    const { Modal } = await import('./js/overlays.js');
+    const cuadro = () => new Promise((ok) => requestAnimationFrame(ok));
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const capa = document.getElementById('ox-layer');
+    const tapa = () => [...capa.querySelectorAll('.ox-scrim')].reduce((p, v) => p * (1 - 0.62 * +getComputedStyle(v).opacity), 1);
+    const out = {};
+    for (const demora of [0, 60]) {
+      Modal.show({ title: 'A', actions: [{ label: 'ok', value: true }] });
+      await espera(400);
+      Modal.close(true);
+      const s = []; const n = [];
+      const t = performance.now();
+      while (performance.now() - t < demora) { s.push(+(1 - tapa()).toFixed(3)); await cuadro(); }
+      Modal.show({ title: 'B', actions: [{ label: 'ok', value: true }] });
+      for (let i = 0; i < 30; i++) { s.push(+(1 - tapa()).toFixed(3)); n.push(capa.querySelectorAll('.ox-scrim').length); await cuadro(); }
+      out['a' + demora] = { tapa: s, velos: Math.max(...n), abierto: Modal.isOpen };
+      Modal.close(null); await espera(400);
+      out['a' + demora].quedan = capa.querySelectorAll('.ox-scrim, .ox-modal__anim').length;
+    }
+    return out;
+  })()`);
+  if (process.env.ONYX_SERIES) console.log(JSON.stringify(modalesSeguidos));
+  for (const [k, v] of Object.entries(modalesSeguidos)) {
+    ok(`close() y show() seguidos (${k.slice(1)} ms): un solo velo, que no oscurece ni se apaga`,
+      v.velos === 1 && v.tapa.every((t) => t < 0.625 && t > 0.5) && v.abierto && v.quedan === 0, JSON.stringify(v));
+  }
+
   /* ── 6. El medidor indeterminado ───────────────────────────────────────────
      Una pista vacía se lee como un componente roto, no como «esperando». Se
      muestrea el recorrido entero en vez de mirar un instante.
@@ -813,6 +955,29 @@ app.whenReady().then(async () => {
     vitrina.relevo && vitrina.nombre && vitrina.valor === vitrina.nombre && vitrina.marcado === vitrina.nombre, JSON.stringify(vitrina));
   ok('el menú del select muestra su hint («por defecto»)', vitrina.hint === 'por defecto', JSON.stringify(vitrina));
   ok('elegir el que ya estaba elegido no releva nada', vitrina.mismo.habia && !vitrina.mismo.relevo && vitrina.mismo.igual, JSON.stringify(vitrina.mismo));
+
+  /* ocupar() y contador() en la vitrina (regla de Piezas: lo que no está en
+     la vitrina no existe). El botón de demo trabaja 1,6 s y vuelve. */
+  const vitrina2 = await js(`(async () => {
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const b = document.getElementById('demo-ocupar');
+    const c = document.getElementById('demo-contador');
+    if (!b || !c) return { falta: true };
+    b.click();
+    const r = { ocupa: b.dataset.ocupado, calco: !!b.querySelector(':scope > .ox-swap-out--over'),
+      spinner: !!b.querySelector(':scope > .ox-swap-in svg, :scope > svg.ox-swap-in') };
+    document.getElementById('demo-contar-mas').click();
+    document.getElementById('demo-contar-mas').click();
+    await espera(1900);
+    r.vuelve = b.dataset.ocupado; r.dice = b.textContent.trim(); r.cuenta = c.textContent;
+    document.getElementById('demo-contar-vaciar').click();
+    await espera(400);
+    r.vacio = c.textContent;
+    return r;
+  })()`);
+  ok('la vitrina muestra ocupar() y contador() andando',
+    !vitrina2.falta && vitrina2.ocupa === '1' && vitrina2.calco && vitrina2.spinner && vitrina2.vuelve === '0' && vitrina2.dice === 'Exportar'
+      && vitrina2.cuenta === '2' && vitrina2.vacio === '', JSON.stringify(vitrina2));
 
   /* «Repetir entradas» (U10): la entrada se repetía con un style.animation en
      línea con fill `both`, que retiene para siempre el último cuadro —el
@@ -1479,6 +1644,231 @@ app.whenReady().then(async () => {
       && ancho.anchos.some((w) => w > ancho.w0 + 1 && w < ancho.final - 1)
       && ancho.xs.some((x) => x > ancho.x0 + 1 && x < ancho.xFinal - 1)
       && ancho.retiene === 0, JSON.stringify(ancho));
+
+  /* ── 8-terdecies-bis. Al achicarse, primero se va lo de adentro ─────────────
+     deslizarAncho y deslizarAlto con un relevo adentro (motion-timing §10).
+     Plegándose en el acto, la caja le cortaba a la frase que se iba un pedazo
+     cuando todavía estaba casi entera: en el chip de Páginas de Quire, a los
+     60 ms 7,5 px con opacidad 0,79. Lo pidieron tres paquetes de la auditoría
+     (2C, 2E y 2F), cada uno con su copia local. Se mide cuadro por cuadro lo
+     que la caja le recorta al calco y con qué opacidad: mientras el calco se
+     ve (≥ 0,3) no le puede recortar nada. Y al crecer, lo nuevo no asoma
+     recortado: con la opacidad ya en ≥ 0,5, la caja está casi abierta. */
+  console.log('\n8-terdecies-bis. Al achicarse, primero se va lo de adentro');
+  const ordenCaja = await js(`(async () => {
+    const m = await import('./js/motion.js');
+    const cuadro = () => new Promise((ok) => requestAnimationFrame(ok));
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const LARGO = 'un documento con un nombre bastante largo.pdf';
+    const fila = () => {
+      const f = document.createElement('div');
+      f.style.cssText = 'position:fixed;left:40px;top:40px;display:flex;gap:16px;z-index:50;font-size:12px';
+      f.innerHTML = '<div class="ox-statusbar__item"><span></span></div><div>vecino</div>';
+      document.body.append(f);
+      return { f, item: f.firstElementChild, valor: f.firstElementChild.firstElementChild };
+    };
+    const r = {};
+
+    // Achicar a lo ancho con un relevo adentro.
+    {
+      const { f, item, valor } = fila();
+      m.swap(valor, LARGO);
+      await espera(400);
+      const w0 = item.getBoundingClientRect().width;
+      m.deslizarAncho(item, () => m.swap(valor, 'corto.pdf', { relevo: true }));
+      const serie = [];
+      for (let i = 0; i < 30; i++) {
+        const calco = valor.querySelector('.ox-swap-out--over');
+        const ri = item.getBoundingClientRect();
+        if (calco) {
+          const rc = calco.getBoundingClientRect();
+          serie.push({ op: +(+getComputedStyle(calco).opacity).toFixed(2), recorte: +Math.max(0, rc.right - ri.right).toFixed(1), w: Math.round(ri.width) });
+        } else serie.push({ op: 0, recorte: 0, w: Math.round(ri.width) });
+        await cuadro();
+      }
+      await espera(200);
+      r.achica = { w0: Math.round(w0), final: Math.round(item.getBoundingClientRect().width), retiene: item.getAnimations().length,
+        peor: serie.filter((s) => s.op >= 0.3).reduce((a, s) => Math.max(a, s.recorte), 0), serie: serie.slice(0, 16) };
+      f.remove();
+    }
+
+    // Achicar SIN relevo adentro: no espera (la espera es solo para el relevo).
+    {
+      const { f, item, valor } = fila();
+      valor.textContent = LARGO;
+      await cuadro();
+      const w0 = item.getBoundingClientRect().width;
+      m.deslizarAncho(item, () => { valor.textContent = 'corto.pdf'; });
+      await cuadro(); await cuadro(); await cuadro();
+      r.sinRelevo = { w0: Math.round(w0), a3: Math.round(item.getBoundingClientRect().width) };
+      await espera(300);
+      f.remove();
+    }
+
+    // Crecer con un relevo adentro: lo nuevo no asoma recortado.
+    {
+      const { f, item, valor } = fila();
+      m.swap(valor, 'corto.pdf');
+      await espera(400);
+      const w0 = item.getBoundingClientRect().width;
+      m.deslizarAncho(item, () => m.swap(valor, LARGO, { relevo: true }));
+      const serie = [];
+      for (let i = 0; i < 30; i++) {
+        const vivo = valor.querySelector(':scope > :not(.ox-swap-out)');
+        const ri = item.getBoundingClientRect();
+        const rv = vivo.getBoundingClientRect();
+        serie.push({ op: +(+getComputedStyle(vivo).opacity).toFixed(2), recorte: +Math.max(0, rv.right - ri.right).toFixed(1) });
+        await cuadro();
+      }
+      await espera(200);
+      const final = item.getBoundingClientRect().width;
+      const delta = final - w0;
+      r.crece = { w0: Math.round(w0), final: Math.round(final),
+        peor: +(serie.filter((s) => s.op >= 0.5).reduce((a, s) => Math.max(a, s.recorte), 0) / delta).toFixed(2), serie: serie.slice(0, 12) };
+      f.remove();
+    }
+
+    // Achicar a lo alto con un relevo adentro (Imprimir, de Múltiple a Simple).
+    {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;left:40px;top:120px;width:300px;z-index:50;font-size:12px;line-height:20px';
+      document.body.append(host);
+      m.swap(host, '<div>una</div><div>dos</div><div>tres</div><div>cuatro</div><div>cinco</div>');
+      await espera(400);
+      const h0 = host.getBoundingClientRect().height;
+      m.deslizarAlto(host, () => m.swap(host, '<div>una sola</div>', { relevo: true }));
+      const serie = [];
+      for (let i = 0; i < 30; i++) {
+        const calco = host.querySelector('.ox-swap-out--over');
+        const rh = host.getBoundingClientRect();
+        if (calco) {
+          const rc = calco.getBoundingClientRect();
+          serie.push({ op: +(+getComputedStyle(calco).opacity).toFixed(2), recorte: +Math.max(0, rc.bottom - rh.bottom).toFixed(1), h: Math.round(rh.height) });
+        } else serie.push({ op: 0, recorte: 0, h: Math.round(rh.height) });
+        await cuadro();
+      }
+      await espera(200);
+      r.alto = { h0: Math.round(h0), final: Math.round(host.getBoundingClientRect().height), retiene: host.getAnimations().length,
+        peor: serie.filter((s) => s.op >= 0.3).reduce((a, s) => Math.max(a, s.recorte), 0), serie: serie.slice(0, 16) };
+      host.remove();
+    }
+    return r;
+  })()`);
+  if (process.env.ONYX_SERIES) console.log(JSON.stringify(ordenCaja));
+  ok('deslizarAncho(): al achicarse no le recorta nada a la frase que se va mientras se ve',
+    ordenCaja.achica.final < ordenCaja.achica.w0 - 20 && ordenCaja.achica.peor < 1 && ordenCaja.achica.retiene === 0, JSON.stringify(ordenCaja.achica));
+  ok('y la espera es solo con un relevo adentro: sin relevo se pliega en el acto',
+    ordenCaja.sinRelevo.a3 < ordenCaja.sinRelevo.w0 - 1, JSON.stringify(ordenCaja.sinRelevo));
+  ok('al crecer, lo que llega no asoma recortado (con opacidad ≥ 0,5 la caja ya casi se abrió)',
+    ordenCaja.crece.final > ordenCaja.crece.w0 + 20 && ordenCaja.crece.peor <= 0.15, JSON.stringify(ordenCaja.crece));
+  ok('deslizarAlto(): al achicarse con un relevo adentro, tampoco recorta lo que se ve',
+    ordenCaja.alto.final < ordenCaja.alto.h0 - 20 && ordenCaja.alto.peor < 1 && ordenCaja.alto.retiene === 0, JSON.stringify(ordenCaja.alto));
+
+  /* ── ocupar() y contador() ──────────────────────────────────────────────────
+     Las dos nacieron repetidas en Quire. ocupar(): libre ↔ ocupado con relevo
+     y el ancho viajando; el estado vive en data-ocupado, así un botón que
+     nace ocupado (la vista se repintó en medio del trabajo) no releva su
+     propio rótulo. contador(): aparece y se va fundiéndose, cambia en su
+     lugar con destello, otra cuenta vacía durante la salida no la corta, y
+     un número que vuelve mientras se iba sigue desde su opacidad. */
+  const piezas2 = await js(`(async () => {
+    const m = await import('./js/motion.js');
+    const espera = (ms) => new Promise((r) => setTimeout(r, ms));
+    const cuadro = () => new Promise((ok) => requestAnimationFrame(ok));
+    const fila = document.createElement('div');
+    fila.style.cssText = 'position:fixed;left:40px;top:40px;display:flex;gap:8px;z-index:50';
+    fila.innerHTML = '<button class="ox-btn ox-btn--primary" id="t-ocupar">Exportar</button><span>vecino</span>'
+      + '<button class="ox-btn ox-btn--primary" data-ocupado="1" id="t-nace">Exportando…</button>'
+      + '<span class="ox-navitem__count" id="t-cuenta"></span>';
+    document.body.append(fila);
+    const b = fila.querySelector('#t-ocupar'); const vecino = b.nextElementSibling;
+    const r = {};
+    const calcos = (el) => el.querySelectorAll(':scope > .ox-swap-out--over').length;
+
+    const w0 = b.getBoundingClientRect().width; const x0 = vecino.getBoundingClientRect().left;
+    m.ocupar(b, true, 'Exportando las 12 páginas…');
+    const xs = [];
+    for (let i = 0; i < 6; i++) { await cuadro(); xs.push(Math.round(vecino.getBoundingClientRect().left)); }
+    r.ocupa = { marca: b.dataset.ocupado, aria: b.getAttribute('aria-busy'), calco: calcos(b) === 1, xs, x0: Math.round(x0) };
+    m.ocupar(b, true, 'Exportando las 12 páginas…');
+    r.repite = calcos(b);
+    await espera(450);
+    r.ocupa.final = Math.round(b.getBoundingClientRect().width); r.ocupa.w0 = Math.round(w0);
+    r.ocupa.dice = b.querySelector(':scope > :not(.ox-swap-out)')?.textContent;
+
+    const nace = fila.querySelector('#t-nace');
+    m.ocupar(nace, true, 'Exportando…');
+    r.nace = { calco: calcos(nace), dice: nace.textContent };
+
+    m.ocupar(b, false, 'Exportar');
+    r.libera = { marca: b.dataset.ocupado, aria: b.getAttribute('aria-busy'), calco: calcos(b) === 1 };
+    await espera(450);
+    r.libera.dice = b.textContent.trim();
+
+    const c = fila.querySelector('#t-cuenta');
+    m.contador(c, 0);
+    r.cero = { hijos: c.childNodes.length, texto: c.textContent };
+    m.contador(c, 4);
+    r.aparece = { entra: !!c.querySelector('.ox-swap-in'), destello: c.classList.contains('ox-ticked'), texto: c.textContent };
+    await espera(350);
+    m.contador(c, 12);
+    r.cambia = { calco: !!c.querySelector('.ox-swap-out'), destello: c.classList.contains('ox-ticked'), texto: c.textContent };
+    await espera(100);
+    /* Un número que vuelve mientras el contador se va: lo que se veía tiene
+       que seguir desde su opacidad, no cortarse y entrar desde 0 (con swap()
+       iba de .93 a 0 en un cuadro). Se muestrea cuadro por cuadro el hijo
+       que se ve. Con el MISMO número además pasaba que el textContent
+       todavía decía «12» (el que sale), y con esa memoria no se escribía
+       nada y el contador quedaba vacío: la memoria es __cuenta. */
+    const opDe = () => { const n = [...c.children].filter((k) => k.isConnected);
+      return n.length ? +Math.max(...n.map((k) => +getComputedStyle(k).opacity)).toFixed(2) : 0; };
+    const vuelve = async (n) => {
+      m.contador(c, 0);
+      const saliendo = c.querySelector('[data-state="closing"]');
+      const v = { sale: !!saliendo, op: [] };
+      for (let i = 0; i < 4; i++) { await cuadro(); v.op.push(opDe()); }
+      m.contador(c, 0);                       // otro vacío: no hace nada
+      for (let i = 0; i < 2; i++) { await cuadro(); v.op.push(opDe()); }
+      v.sigue = !!saliendo?.isConnected;
+      c.classList.remove('ox-ticked');        // la clase queda puesta del destello anterior
+      m.contador(c, n);
+      v.destello = c.classList.contains('ox-ticked');
+      v.tras = [];
+      for (let i = 0; i < 12; i++) { await cuadro(); v.tras.push(opDe()); }
+      await espera(250);
+      v.texto = c.textContent; v.hijos = c.children.length;
+      return v;
+    };
+    r.seVa = await vuelve(12);
+    await espera(400);
+    r.otro = await vuelve(7);
+    // Y después se puede volver a ir: swap() sabe que hay algo a la vista.
+    m.contador(c, 0);
+    await espera(400);
+    r.final = { texto: c.textContent, hijos: c.children.length };
+    fila.remove();
+    return r;
+  })()`);
+  ok('ocupar(): pasa a ocupado con un relevo, marca data-ocupado y aria-busy, y el vecino acompaña',
+    piezas2.ocupa.marca === '1' && piezas2.ocupa.aria === 'true' && piezas2.ocupa.calco && piezas2.ocupa.final > piezas2.ocupa.w0 + 20
+      && piezas2.ocupa.xs.some((x) => x > piezas2.ocupa.x0 + 1 && x < piezas2.ocupa.x0 + (piezas2.ocupa.final - piezas2.ocupa.w0) - 1)
+      && piezas2.ocupa.dice === 'Exportando las 12 páginas…', JSON.stringify(piezas2.ocupa));
+  ok('con el mismo estado no hace nada', piezas2.repite === 1, String(piezas2.repite));
+  ok('un botón que nace ocupado (data-ocupado="1") no releva su propio rótulo', piezas2.nace.calco === 0 && piezas2.nace.dice === 'Exportando…', JSON.stringify(piezas2.nace));
+  ok('y vuelve a libre con otro relevo', piezas2.libera.marca === '0' && piezas2.libera.aria === 'false' && piezas2.libera.calco && piezas2.libera.dice === 'Exportar', JSON.stringify(piezas2.libera));
+  ok('contador(): con 0 queda vacío', piezas2.cero.hijos === 0 && piezas2.cero.texto === '', JSON.stringify(piezas2.cero));
+  ok('aparece fundiéndose, sin destello (el primer llenado no es un cambio)', piezas2.aparece.entra && !piezas2.aparece.destello && piezas2.aparece.texto === '4', JSON.stringify(piezas2.aparece));
+  ok('cambia en su lugar con un destello, sin relevo', !piezas2.cambia.calco && piezas2.cambia.destello && piezas2.cambia.texto === '12', JSON.stringify(piezas2.cambia));
+  ok('se va fundiéndose, y otro 0 durante la salida no la corta',
+    piezas2.seVa.sale && piezas2.seVa.op.some((o) => o > 0.05 && o < 0.95) && piezas2.seVa.sigue, JSON.stringify(piezas2.seVa));
+  // Desde la opacidad en que iba y siempre para arriba, hasta 1.
+  const sube = (v) => { const desde = v.op[v.op.length - 1]; const serie = [desde, ...v.tras];
+    return desde < 0.9 && serie.every((o, i) => i === 0 || o >= serie[i - 1] - 0.01) && v.tras[v.tras.length - 1] > 0.98; };
+  ok('si el mismo número vuelve mientras se va, sigue desde donde iba (sin parpadeo) y queda',
+    sube(piezas2.seVa) && piezas2.seVa.texto === '12' && piezas2.seVa.hijos === 1 && !piezas2.seVa.destello, JSON.stringify(piezas2.seVa));
+  ok('si vuelve otro número, también sigue desde donde iba, y cambia con destello',
+    sube(piezas2.otro) && piezas2.otro.texto === '7' && piezas2.otro.hijos === 1 && piezas2.otro.destello, JSON.stringify(piezas2.otro));
+  ok('y después se puede volver a ir', piezas2.final.texto === '' && piezas2.final.hijos === 0, JSON.stringify(piezas2.final));
 
   /* reconcile() sobre una tabla: las filas que siguen son el MISMO nodo y
      viajan (FLIP); la que se va sale fuera del flujo CON el ancho de sus
