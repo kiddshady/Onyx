@@ -139,6 +139,11 @@ hay una línea — la statusbar, el pie de un panel, el hairline del propio bloq
 esa línea ya es el límite: el fade encima la ensucia, y además miente, porque el
 contenido no se pierde en la nada sino que muere contra un borde.
 
+El fade es del contenido, nunca de la scrollbar: la máscara deja afuera la franja
+de la derecha (`--ox-sb`, el ancho de `::-webkit-scrollbar`). Si cambiás el ancho
+de la scrollbar, cambiá los dos. Con la máscara entera, al llegar arriba la punta
+del thumb quedaba esfumada mientras el fade se retiraba.
+
 ```html
 <div class="ox-scroll ox-scroll--line-bottom">…</div>
 ```

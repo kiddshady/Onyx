@@ -263,6 +263,36 @@ app.whenReady().then(async () => {
     return { con: head({ title: 'x', linea: true }).includes('ox-viewhead--line'), sin: head({ title: 'x' }).includes('ox-viewhead--line') }; })()`);
   ok('head({ linea: true }) pone la clase, y sin pedirla no', !!apiHead && apiHead.con && !apiHead.sin, JSON.stringify(apiHead));
 
+  /* 4-quater. El esfumado no tapa la scrollbar. Al llegar arriba, el fade tarda
+     --ox-t-3 en retirarse, y con la máscara sobre la caja entera la punta del
+     thumb quedaba esfumada ese rato y aparecía después (Nexus, como la bóveda de
+     Prism). Se congela el fade prendido con el scroll arriba y se mide en
+     píxeles: la punta del thumb tiene que brillar igual que su medio. */
+  console.log('\n4-quater. El esfumado no tapa la scrollbar');
+  const sbCaja = await js(`(() => {
+    const st = document.createElement('style');
+    st.id = 'sb-test-st';
+    st.textContent = '#sb-test::-webkit-scrollbar-thumb { background-color: #fff; }';
+    document.head.append(st);
+    const sc = document.createElement('div');
+    sc.id = 'sb-test';
+    sc.className = 'ox-scroll';
+    sc.style.cssText = 'position:fixed;left:60px;top:200px;width:240px;height:200px;z-index:900;'
+      + 'background:#000;transition:none;--ox-fade:20px;--ox-fade-top:20px;--ox-fade-bottom:20px';
+    sc.innerHTML = '<div style="height:900px"></div>';
+    document.body.append(sc);
+    sc.scrollTop = 0;
+    const r = sc.getBoundingClientRect();
+    return { x: r.right, y: r.top };
+  })()`);
+  await sleep(300);
+  // El thumb vive en los 10 px de la derecha, con 3 px de borde transparente.
+  const sbPunta = await brillo({ x: sbCaja.x - 6, y: sbCaja.y + 4, width: 2, height: 12 });
+  const sbMedio = await brillo({ x: sbCaja.x - 6, y: sbCaja.y + 26, width: 2, height: 12 });
+  await js(`document.getElementById('sb-test')?.remove(); document.getElementById('sb-test-st')?.remove(); true`);
+  ok('con el fade prendido, la punta del thumb se ve entera',
+    sbMedio.media > 150 && sbPunta.media > sbMedio.media * 0.9, JSON.stringify({ sbPunta, sbMedio }));
+
   // De vuelta al detalle: lo que sigue abre su menú.
   ok('vuelve al detalle', await click(`[data-open="${id}"]`));
   await sleep(800);
