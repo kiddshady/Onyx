@@ -226,9 +226,17 @@ hardcodeado y no hay forma de taparlo. Por eso la versión está pineada.
 
 ## Los datos
 
-Archivos JSON legibles en `data/`, no en AppData: se abren con un editor, se
-versionan en git, y se arreglan a mano cuando algo sale mal. `<APP>_DATA` mueve
-la carpeta.
+Archivos JSON legibles, no una base de datos: se abren con un editor, se
+versionan en git, y se arreglan a mano cuando algo sale mal.
+
+Dónde viven depende de cómo corre la app:
+
+- **En desarrollo** → `data/` del proyecto: visible, versionable, tuya.
+- **Empaquetada** → el `userData` de la app. Adentro de un `.asar` todo es solo
+  lectura, y escribir "al lado del código" ahí no tira error: **falla en
+  silencio** y la app parece amnésica. (Traído de Opal en octubre de 2026; una
+  app copiada antes no lo tiene.)
+- `<APP>_DATA` mueve la carpeta en los dos casos.
 
 `src/store.cjs` da tres formas de guardar:
 

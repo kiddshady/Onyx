@@ -31,7 +31,22 @@
 const fsp = require('fs/promises');
 const path = require('path');
 
-const ROOT = process.env.ONYX_DATA || path.join(__dirname, '..', 'data');
+/* Empaquetada, la app vive adentro de un .asar: SOLO LECTURA. Escribir "al
+   lado del código" ahí no tira error visible — falla en silencio y la app
+   parece amnésica. Por eso el default depende de cómo corre:
+     · dev (npm run dev)  → data/ del proyecto: visible, versionable, tuya.
+     · empaquetada        → userData de la app, que sí es escribible.
+   El try/catch existe porque este módulo también corre en node pelado (los
+   tests): ahí require('electron') no da el módulo real y no hay app. */
+function defaultRoot() {
+  try {
+    const { app } = require('electron');
+    if (app && app.isPackaged) return path.join(app.getPath('userData'), 'data');
+  } catch { /* node pelado: no hay electron */ }
+  return path.join(__dirname, '..', 'data');
+}
+
+const ROOT = process.env.ONYX_DATA || defaultRoot();
 const SETTINGS_FILE = path.join(ROOT, 'settings.json');
 
 /* ── Ajustes de tu app ───────────────────────────────────────────────────────
