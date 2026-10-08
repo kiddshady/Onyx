@@ -8,11 +8,11 @@ queda 100% independiente — no enlaza contra Onyx, así que tocar Onyx más
 adelante no puede romper nada de lo que ya construiste.
 
 ```powershell
-.\scaffold.ps1 -Name Thunder -Accent cian
+.\scaffold.ps1 -Name MiApp -Accent cian
 ```
 
 ```
-cd C:\tools\Thunder
+cd S:\tools\MiApp
 npm run dev
 ```
 

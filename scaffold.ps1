@@ -33,7 +33,7 @@
   No corre npm install.
 
 .EXAMPLE
-  .\scaffold.ps1 -Name Thunder -Accent cian
+  .\scaffold.ps1 -Name MiApp -Accent cian
 
 .EXAMPLE
   .\scaffold.ps1 -Name Penumbra -Path S:\tools\Penumbra -Accent violeta -Tint 2
