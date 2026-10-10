@@ -277,6 +277,15 @@ borde —un lienzo, un mapa— lleva `.ox-bleed`.
 `position:relative` para anclar controles flotantes: si viven dentro del
 contenedor que scrollea, se van de pantalla con el contenido.
 
+**El cuerpo del inspector tiene la franja de la barra siempre reservada**
+(`scrollbar-gutter: stable`, descontada del padding derecho). Sin eso, cuando
+el contenido pasaba de desbordar a no desbordar —en Chem Engine, un aviso que
+aparece y se lleva media ficha— la scrollbar se iba y todo el contenido saltaba
+10 px a la derecha en un cuadro. Va solo a la derecha porque ahí es donde la
+máscara del esfumado de `.ox-scroll` espera la barra (`--ox-sb`): con
+`both-edges`, la franja izquierda corría el área de la máscara y los valores
+alineados a la derecha salían cortados. El humo lo mide en 4-bis-bis.
+
 ---
 
 ## Controles

@@ -215,6 +215,42 @@ app.whenReady().then(async () => {
   ok('.ox-bleed se queda sin la sangría', bleed.bleed === '0px' && bleed.comun === '24px', JSON.stringify(bleed));
   ok('un __main de borde a borde no estira su scroll por fuera', bleed.mainBleed === '0px' && bleed.scrollEnBleed === '0px', JSON.stringify(bleed));
 
+  /* ── 4-bis-bis. La barra del inspector no corre el contenido ──────────────
+     Salió de Chem Engine (octubre de 2026): un aviso que aparece se lleva
+     media ficha, el cuerpo deja de desbordar, la scrollbar se va y TODO el
+     contenido salta 10 px a la derecha en un cuadro (y al revés al deshacer).
+     Ahora la franja de la barra está siempre reservada a la derecha y
+     descontada del padding: el contenido queda en el mismo lugar con barra o
+     sin ella, y a --ox-4 de los dos bordes. Se mide con el inspector real: se
+     esconde lo que tiene, se pone una sonda, y se fuerza el desborde. */
+  console.log('\n4-bis-bis. La barra del inspector no corre el contenido');
+  const franja = await js(`(() => {
+    const body = document.querySelector('.ox-inspector__body');
+    if (!body) return null;
+    const hijos = [...body.children];
+    const antes = hijos.map((c) => c.style.display);
+    hijos.forEach((c) => { c.style.display = 'none'; });
+    const sonda = document.createElement('div');
+    sonda.style.height = '20px';
+    const relleno = document.createElement('div');
+    body.append(sonda, relleno);
+    const medir = () => {
+      const b = body.getBoundingClientRect();
+      const r = sonda.getBoundingClientRect();
+      return { izq: Math.round(r.left - b.left), der: Math.round(b.right - r.right), desborda: body.scrollHeight - body.clientHeight > 1 };
+    };
+    const sin = medir();
+    relleno.style.height = '3000px';
+    const con = medir();
+    sonda.remove(); relleno.remove();
+    hijos.forEach((c, i) => { c.style.display = antes[i]; });
+    return { sin, con };
+  })()`);
+  ok('el contenido del inspector no se corre cuando aparece la barra',
+    franja && !franja.sin.desborda && franja.con.desborda
+      && franja.sin.izq === franja.con.izq && franja.sin.der === franja.con.der, JSON.stringify(franja));
+  ok('y queda a la misma distancia de los dos bordes', franja && franja.sin.izq === franja.sin.der, JSON.stringify(franja));
+
   /* ── 4-ter. El encabezado cierra con línea donde hay inspector ─────────────
      El panel es de otro plano y arranca con un borde duro justo debajo del
      encabezado; si la columna principal se esfuma arriba, el encabezado se ve

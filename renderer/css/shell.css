@@ -357,7 +357,24 @@
   padding: var(--ox-4) var(--ox-4) var(--ox-3);
   flex: 0 0 auto;
 }
-.ox-inspector__body { flex: 1 1 auto; min-height: 0; padding-left: var(--ox-4); padding-right: var(--ox-4); }
+/* LA FRANJA DE LA BARRA SE RESERVA SIEMPRE, y de los dos lados. Sin esto, el
+   contenido entero se corría los 10 px de la scrollbar en un cuadro cada vez
+   que el cuerpo pasaba de desbordar a no desbordar: en Chem Engine, un aviso
+   de valencia que aparece se lleva las propiedades de RDKit, la ficha se
+   acorta 800 px, la barra se va y todo salta a la derecha (y al revés al
+   deshacer). Reservada y descontada del padding derecho, el contenido queda
+   a --ox-4 de cada borde con barra o sin ella, alineado con la cabecera; la
+   barra ocupa su franja sin mover nada. Solo a la DERECHA, que es donde la
+   máscara del esfumado de .ox-scroll la espera (--ox-sb): con `both-edges`
+   la franja de la izquierda corría 10 px el área de la máscara y, con la
+   ficha desbordada, los valores alineados a la derecha salían mochos. */
+.ox-inspector__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  scrollbar-gutter: stable;
+  padding-left: var(--ox-4);
+  padding-right: calc(var(--ox-4) - var(--ox-sb));
+}
 /* Arriba corta al aire: el head no lleva línea. Abajo NUNCA — si hay pie, lo
    cierra el pie; si no lo hay, lo cierra la línea de la statusbar. Con solo la
    primera condición, un inspector sin pie recuperaba el esfumado y se lo
