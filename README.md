@@ -109,6 +109,8 @@ renderer/
 tools/
   retint.mjs          Re-tinta la app dejando los tres lugares sincronizados.
   oklch.mjs           OKLCH → sRGB, con las matrices del estándar.
+  bloques.mjs         La fuente de los bloques (█ ▀ ▛…) con las medidas de
+                      Roboto Mono, que no los trae: llenan la celda sin rayas.
 test/
   tokens.test.mjs     Que el color de la ventana no se desincronice.
   store.test.mjs      Escritura atómica bajo concurrencia.

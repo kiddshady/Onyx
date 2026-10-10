@@ -93,6 +93,18 @@ si falta el 500, el navegador engorda el 400 a mano y en una monoespaciada se
 nota. Aparece sola en **Piezas**, que descubre los tokens leyendo las hojas de
 estilo.
 
+**Lo que la mono no trae también cae al respaldo**, con otras medidas. Roboto Mono
+no tiene los bloques (█ ▀ ▄ ▌ ▐ ▛ ▜, U+2580–259F): salían de Cascadia Mono, no
+llenaban la celda, y el mascot de Claude Code en una terminal salía con rayas entre
+filas y entre columnas. `fonts.css` les suma a la familia una fuente propia de 2 KB,
+`renderer/fonts/bloques.ttf`, generada con las medidas de Roboto Mono por
+`tools/bloques.mjs` (vino de Prism, oct 2026): afuera el bloque se pasa un poco de la
+celda (la fila de la terminal lo recorta y el vecino lo tapa), adentro corta exacto.
+Si la mono cambia, se vuelve a generar con sus medidas. Con xterm.js hay que cargarla
+antes de abrir (`document.fonts.load("13px 'Roboto Mono'", '█')`): xterm se guarda el
+ancho de cada carácter la primera vez que lo ve. El humo (7) mide el ancho, el alto y
+la mitad.
+
 ### Movimiento
 
 | Token | Curva | Para |

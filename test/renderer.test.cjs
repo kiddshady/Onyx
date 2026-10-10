@@ -993,6 +993,31 @@ app.whenReady().then(async () => {
   // texto del CSS, en tokens.test.mjs.
   ok('la familia efectiva es la empaquetada', fuente.declarada.includes('Roboto Mono'), fuente.declarada);
 
+  /* Los bloques (█ ▀ ▛…): Roboto Mono no los trae, y los de la fuente de
+     respaldo no llenaban la celda (un dibujo de bloques, como el mascot de
+     Claude Code en una terminal, salía rayado). fonts.css suma los propios
+     (tools/bloques.mjs). Se mide que vengan de ahí y que tengan las medidas
+     de la mono: el ancho de la W, de la línea de arriba a la de abajo, y la
+     mitad donde va. Con los del respaldo fallan las cuatro. */
+  const bloques = await js(`(async () => {
+    const caras = await document.fonts.load('64px "Roboto Mono"', '█');
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = '64px "Roboto Mono"';
+    const w = c.measureText('W'), lleno = c.measureText('█'), arriba = c.measureText('▀');
+    return {
+      caras: caras.length,
+      ancho: +(lleno.width - w.width).toFixed(2),
+      sobraArriba: +(lleno.actualBoundingBoxAscent - w.fontBoundingBoxAscent).toFixed(2),
+      sobraAbajo: +(lleno.actualBoundingBoxDescent - w.fontBoundingBoxDescent).toFixed(2),
+      mitad: +(-arriba.actualBoundingBoxDescent - (w.fontBoundingBoxAscent - w.fontBoundingBoxDescent) / 2).toFixed(2),
+    };
+  })()`);
+  ok('los bloques salen de los propios, no del respaldo', bloques.caras > 0, JSON.stringify(bloques));
+  ok('un bloque mide lo mismo que la W', Math.abs(bloques.ancho) < 0.5, JSON.stringify(bloques));
+  ok('y llena la línea de arriba a abajo', bloques.sobraArriba >= 0 && bloques.sobraAbajo >= 0, JSON.stringify(bloques));
+  // El canvas redondea las medidas a pixeles enteros: a 64 px, la mitad cae a ±1 (con el respaldo, a -6).
+  ok('el medio bloque corta en la mitad de la línea', Math.abs(bloques.mitad) <= 1.5, JSON.stringify(bloques));
+
   const monos = await js(`document.querySelectorAll('#knob-mono [data-mono]').length`);
   ok('la vitrina descubrió las monos declaradas', monos >= 2, `${monos}`);
   const antesMono = await js(`getComputedStyle(document.querySelector('#mono-sample')).fontFamily`);
