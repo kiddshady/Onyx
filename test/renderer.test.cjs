@@ -2161,6 +2161,34 @@ app.whenReady().then(async () => {
     el.hidden = true; const d = getComputedStyle(el).display; el.hidden = false; return d; })()`);
   ok('un ítem de la statusbar con hidden se esconde de verdad', statEscondido === 'none', statEscondido);
 
+  /* ── 8-duodecies-bis. Lo plegado de un .ox-reveal sale del Tab ──────────
+     Salió de Chem Engine (octubre de 2026): con alto 0, los botones de adentro
+     de un revelado cerrado seguían enfocables —el panel del átomo dejaba
+     catorce paradas invisibles— y el foco desaparecía en la nada. Cerrado,
+     nada de adentro toma el foco; abierto, sí. Y un ghost que es interruptor
+     (.is-active) se ve distinto de uno apagado. */
+  console.log('\n8-duodecies-bis. Lo plegado de un revelado sale del Tab');
+  const revelado = await js(`(async () => {
+    const rev = document.getElementById('demo-reveal');
+    const boton = document.getElementById('demo-reveal-boton');
+    const enfoca = () => { boton.focus(); const si = document.activeElement === boton; boton.blur(); return si; };
+    const cerrado = { abierto: rev.classList.contains('is-open'), vis: getComputedStyle(rev).visibility, foco: enfoca() };
+    document.getElementById('demo-revelar').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const abierto = { abierto: rev.classList.contains('is-open'), vis: getComputedStyle(rev).visibility, foco: enfoca() };
+    document.getElementById('demo-revelar').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const otraVez = { vis: getComputedStyle(rev).visibility, foco: enfoca() };
+    const fondo = (el) => getComputedStyle(el).backgroundColor;
+    const ghost = document.querySelector('.ox-btn--ghost:not(.is-active):not(:hover)');
+    const prendido = document.getElementById('demo-ghost-interruptor');
+    return { cerrado, abierto, otraVez, ghost: fondo(ghost), prendido: fondo(prendido) };
+  })()`);
+  ok('cerrado, lo de adentro no toma el foco', !revelado.cerrado.abierto && revelado.cerrado.vis === 'hidden' && !revelado.cerrado.foco, JSON.stringify(revelado.cerrado));
+  ok('abierto, sí', revelado.abierto.abierto && revelado.abierto.vis === 'visible' && revelado.abierto.foco, JSON.stringify(revelado.abierto));
+  ok('y al volver a cerrarse, de nuevo no', revelado.otraVez.vis === 'hidden' && !revelado.otraVez.foco, JSON.stringify(revelado.otraVez));
+  ok('un ghost prendido (.is-active) se ve distinto de uno apagado', revelado.prendido !== revelado.ghost, `${revelado.ghost} vs ${revelado.prendido}`);
+
   console.log('\n9. Las reglas de oro');
   const glifos = await js(`(() => {
     const malo = /[\\u2190-\\u21FF\\u2300-\\u23FF\\u25A0-\\u27BF\\u2B00-\\u2BFF\\uFE0F\\u{1F300}-\\u{1FAFF}]/u;

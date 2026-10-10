@@ -10,7 +10,7 @@
 
 import { Icons } from './icons.js';
 import { Toast, Menu, Modal } from './overlays.js';
-import { bindSwitcher, bindStepper, swap, ocupar, contador } from './motion.js';
+import { bindSwitcher, bindStepper, swap, ocupar, contador, toggleReveal } from './motion.js';
 import { mark, status, copy, colorToken, path, esc } from './ui.js';
 
 /* ── Las tres perillas ───────────────────────────────────────────────────────
@@ -169,6 +169,8 @@ export function designHTML() {
           <button class="ox-btn ox-btn--primary ox-flashable"><i data-icon="play"></i> Acción primaria</button>
           <button class="ox-btn ox-btn--secondary ox-flashable">Secundario</button>
           <button class="ox-btn ox-btn--ghost ox-flashable">Ghost</button>
+          <button class="ox-btn ox-btn--ghost ox-flashable is-active" id="demo-ghost-interruptor"
+                  data-tip="Un ghost que es interruptor: prendido se ve">Interruptor</button>
           <button class="ox-btn ox-btn--danger ox-flashable"><i data-icon="trash"></i> Eliminar</button>
           <button class="ox-btn ox-btn--danger-solid ox-flashable">Borrar todo</button>
           <button class="ox-btn ox-btn--secondary" disabled>Deshabilitado</button>
@@ -276,7 +278,15 @@ export function designHTML() {
         <div class="ox-row" style="gap:8px;margin-bottom:12px">
           <button class="ox-btn ox-btn--ghost ox-btn--sm" id="demo-plegar">Opciones avanzadas</button>
           <button class="ox-btn ox-btn--ghost ox-btn--sm" id="demo-plegar-ancho">Dato del medio</button>
+          <button class="ox-btn ox-btn--ghost ox-btn--sm" id="demo-revelar">Revelado (.ox-reveal)</button>
         </div>
+        <!-- Un revelado con algo enfocable adentro: plegado tiene que quedar
+             FUERA DEL TAB (visibility), o el foco se pierde en un panel cerrado. -->
+        <div class="ox-reveal" id="demo-reveal" style="max-width:420px"><div>
+          <div class="ox-row" style="gap:8px;padding-bottom:12px">
+            <button class="ox-btn ox-btn--secondary ox-btn--sm" id="demo-reveal-boton">Adentro del revelado</button>
+          </div>
+        </div></div>
         <div class="ox-card" style="max-width:420px">
           <div class="ox-card__body">
             <div class="ox-plegable" id="demo-plegable" hidden>
@@ -633,6 +643,10 @@ export function wireDesign(rootEl) {
   rootEl.querySelector('#demo-plegar')?.addEventListener('click', () => { plegable.hidden = !plegable.hidden; });
   const ancho = rootEl.querySelector('#demo-plegable-ancho');
   rootEl.querySelector('#demo-plegar-ancho')?.addEventListener('click', () => { ancho.hidden = !ancho.hidden; });
+  const revelado = rootEl.querySelector('#demo-reveal');
+  rootEl.querySelector('#demo-revelar')?.addEventListener('click', () => toggleReveal(revelado));
+  const interruptor = rootEl.querySelector('#demo-ghost-interruptor');
+  interruptor?.addEventListener('click', () => interruptor.classList.toggle('is-active'));
 
   /* Íconos: click = copiar la etiqueta lista para pegar. */
   rootEl.querySelector('#icon-grid')?.addEventListener('click', (e) => {
