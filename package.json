@@ -13,6 +13,6 @@
     "smoke": "electron test/renderer.test.cjs"
   },
   "devDependencies": {
-    "electron": "40.10.2"
+    "electron": "44.5.1"
   }
 }

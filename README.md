@@ -193,7 +193,7 @@ sobra.
 
 ---
 
-## Por qué Electron 40 y por qué la ventana nace en x:-20000
+## Por qué Electron 40 o más, y por qué la ventana nace en x:-20000
 
 Hay **dos** destellos blancos distintos al abrir una ventana en Windows, y se
 arreglan distinto. Confundirlos es lo que hace perder horas.
@@ -219,10 +219,21 @@ destello "a veces sí, a veces no" es siempre este número, nunca otra cosa.
 Y hay un tercer destello, el de **minimizar → restaurar**, que el truco
 off-screen no cubre. Ese no se elimina: se tiñe. Desde Electron 40 el compositor
 lo pinta con el `backgroundColor` de la ventana; en la 33 y anteriores es blanco
-hardcodeado y no hay forma de taparlo. Por eso la versión está pineada.
+hardcodeado y no hay forma de taparlo. Por eso la versión está pineada, y nunca
+por debajo de la 40.
+
+Pineada no quiere decir quieta. Electron le da parches de seguridad solo a las
+**tres últimas mayores**: la 40 quedó sin soporte el 30 de junio de 2026, y con
+ella cada arreglo de Chromium y de V8 de los meses siguientes. Hoy es la
+**44.5.1** (Chromium 152). Antes de empezar una app nueva, o cada tanto en una
+que ya existe, `npm view electron dist-tags`: si la instalada ya no está entre
+las tres últimas mayores, se sube y se corren `npm test` y `npm run smoke`.
 
 > **Peaje del upgrade:** subir de Electron sube Node y puede romper módulos
-> nativos. Regla: upgrade de Electron ⇒ rebuild de nativos.
+> nativos. Regla: upgrade de Electron ⇒ rebuild de nativos. Y leer los cambios
+> incompatibles de cada mayor: en la 44 el portapapeles del proceso principal
+> pasó a ser asíncrono (`await clipboard.readText()`), y desde la 42 el binario
+> se baja la primera vez que corre `electron`, no al instalar.
 
 ---
 
