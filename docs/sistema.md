@@ -610,8 +610,8 @@ también mide la caja del calco y el fundido de una tabla).
 repintar la vista hay siete ayudas más (nacieron en Finway, Apex, Prism y Quire):
 
 ```js
-numero(el, v)                // un número suelto: en su lugar, con destello (tick)
-frase(el, html)              // una frase: si cambian solo sus cifras, destello; si no, relevo
+numero(el, v, opts)          // un número suelto: en su lugar, con destello (tick)
+frase(el, html, opts)        // una frase: si cambian solo sus cifras, destello; si no, relevo
 valor(el, html)              // lo que cambia MUY seguido (un stepper apretado): siempre en su lugar
 deslizarAlto(el, cambio)     // hace cambio() y la caja va de su alto al nuevo
 deslizarAncho(el, cambio)    // lo mismo a lo ancho: un ítem de una fila (la statusbar)
@@ -624,6 +624,15 @@ reconcile(box, items, opts)  // una lista por clave (abajo)
   elemento estaba vacío. Por eso un contador del chrome nace **vacío** en el
   HTML, no en «0»: si no, el primer dato cuenta como cambio y queda teñido de
   acento mientras se va el splash (Finway 0.8.5).
+- **Un progreso no destella.** El destello es para un valor que cambió porque
+  alguien lo cambió (una flecha, un descuento), no para uno que corre solo. El
+  % de una descarga o de una instalación cambia varias veces por segundo: cada
+  destello (700 ms) arrancaba antes de que terminara el anterior y el número se
+  prendía y apagaba sin parar, como un bug. Va con `{ destello: false }`:
+  `numero(pct, '42 %', { destello: false })` o `frase(el, 'Descargando · 42 %',
+  { destello: false })`; la barra (`--ox-pct`) ya avanza con su transición.
+  Si cambia la frase (de «Descargando» a «Instalando»), `frase()` igual hace
+  el relevo. Pharos lo tenía de antes (su `setText` con `false`).
 - **`frase()` compara la frase con los números tapados.** «3 tomas» → «4 tomas»
   es la misma frase (destello); «1 toma» → «2 tomas», no (relevo). Si algo cambia
   en cada paso de un stepper y cambia palabras («hasta el lunes» → «hasta el

@@ -1743,6 +1743,14 @@ app.whenReady().then(async () => {
     m.numero(n, 5); r.primeroDestella = n.classList.contains('ox-ticked');
     m.numero(n, 6); r.cambioDestella = n.classList.contains('ox-ticked') && n.textContent === '6';
 
+    // Un progreso: { destello: false } cambia el número sin destellar.
+    const p = nuevo();
+    m.numero(p, '41 %'); m.numero(p, '42 %', { destello: false });
+    r.progreso = { destello: p.classList.contains('ox-ticked'), dice: p.textContent };
+    const pf = nuevo('Descargando · 41 %');
+    m.frase(pf, 'Descargando · 42 %', { destello: false });
+    r.progresoFrase = { calco: !!pf.querySelector('.ox-swap-out'), destello: pf.classList.contains('ox-ticked'), dice: pf.textContent };
+
     // frase: solo cifras → en el lugar con destello; otra frase → relevo.
     const f = nuevo('3 tomas');
     m.frase(f, '4 tomas');
@@ -1771,6 +1779,10 @@ app.whenReady().then(async () => {
   })()`);
   ok('numero(): el primer llenado no destella', vivo.primeroDestella === false, JSON.stringify(vivo));
   ok('y un cambio se escribe en el lugar con un destello', vivo.cambioDestella, JSON.stringify(vivo));
+  ok('numero() con { destello: false }: un progreso cambia sin destellar',
+    !vivo.progreso.destello && vivo.progreso.dice === '42 %', JSON.stringify(vivo.progreso));
+  ok('frase() con { destello: false }: las cifras de un progreso cambian en el lugar sin destellar',
+    !vivo.progresoFrase.calco && !vivo.progresoFrase.destello && vivo.progresoFrase.dice === 'Descargando · 42 %', JSON.stringify(vivo.progresoFrase));
   ok('frase(): si cambian solo las cifras, en el lugar con destello', !vivo.cifras.calco && vivo.cifras.destello && vivo.cifras.dice === '4 tomas', JSON.stringify(vivo.cifras));
   ok('y si cambia la frase, relevo', vivo.otra.calco, JSON.stringify(vivo.otra));
   ok('valor(): siempre en el lugar, aunque cambien palabras', !vivo.valorPrimero && !vivo.valor.calco && vivo.valor.destello && vivo.valor.dice === 'hasta el martes', JSON.stringify(vivo));
