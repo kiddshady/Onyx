@@ -1751,6 +1751,20 @@ app.whenReady().then(async () => {
     m.frase(pf, 'Descargando · 42 %', { destello: false });
     r.progresoFrase = { calco: !!pf.querySelector('.ox-swap-out'), destello: pf.classList.contains('ox-ticked'), dice: pf.textContent };
 
+    // roll: la primera vez escribe; después corre desde lo que se ve, y un
+    // dato nuevo a mitad de camino retoma desde ahí (no vuelve atrás).
+    const rl = nuevo();
+    const pintar = (v) => { rl.textContent = Math.round(v) + ' %'; };
+    m.roll(rl, 10, pintar);
+    r.rollPrimero = rl.textContent;
+    m.roll(rl, 60, pintar);
+    const pasos = [];
+    for (let i = 0; i < 5; i++) { await new Promise((ok) => requestAnimationFrame(ok)); pasos.push(parseInt(rl.textContent, 10)); }
+    m.roll(rl, 80, pintar);
+    for (let i = 0; i < 4; i++) { await new Promise((ok) => requestAnimationFrame(ok)); pasos.push(parseInt(rl.textContent, 10)); }
+    await espera(500);
+    r.roll = { pasos, final: rl.textContent, destello: rl.classList.contains('ox-ticked') };
+
     // frase: solo cifras → en el lugar con destello; otra frase → relevo.
     const f = nuevo('3 tomas');
     m.frase(f, '4 tomas');
@@ -1783,6 +1797,11 @@ app.whenReady().then(async () => {
     !vivo.progreso.destello && vivo.progreso.dice === '42 %', JSON.stringify(vivo.progreso));
   ok('frase() con { destello: false }: las cifras de un progreso cambian en el lugar sin destellar',
     !vivo.progresoFrase.calco && !vivo.progresoFrase.destello && vivo.progresoFrase.dice === 'Descargando · 42 %', JSON.stringify(vivo.progresoFrase));
+  ok('roll(): la primera vez escribe sin correr', vivo.rollPrimero === '10 %', JSON.stringify(vivo.rollPrimero));
+  ok('y después corre de a poco, sin volver atrás al llegar otro dato',
+    vivo.roll.pasos.some((v) => v > 10 && v < 60) && vivo.roll.pasos.every((v, i, a) => i === 0 || v >= a[i - 1]),
+    JSON.stringify(vivo.roll));
+  ok('y llega al último, sin destello', vivo.roll.final === '80 %' && !vivo.roll.destello, JSON.stringify(vivo.roll));
   ok('frase(): si cambian solo las cifras, en el lugar con destello', !vivo.cifras.calco && vivo.cifras.destello && vivo.cifras.dice === '4 tomas', JSON.stringify(vivo.cifras));
   ok('y si cambia la frase, relevo', vivo.otra.calco, JSON.stringify(vivo.otra));
   ok('valor(): siempre en el lugar, aunque cambien palabras', !vivo.valorPrimero && !vivo.valor.calco && vivo.valor.destello && vivo.valor.dice === 'hasta el martes', JSON.stringify(vivo));
